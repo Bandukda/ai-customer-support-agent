@@ -1,0 +1,160 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Meridian Assist — AI Customer Support</title>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🛟</text></svg>" />
+  <link rel="stylesheet" href="/styles/base.css" />
+  <link rel="stylesheet" href="/styles/chat.css" />
+  <link rel="stylesheet" href="/styles/admin.css" />
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">
+      <span class="brand-mark">M</span>
+      <div>
+        <div class="brand-name">Meridian Assist</div>
+        <div class="brand-sub">AI Customer Support · Refund Agent</div>
+      </div>
+    </div>
+    <nav class="mode-tabs" role="tablist" aria-label="View">
+      <button class="mode-tab active" data-mode="chat" role="tab">Customer Chat</button>
+      <button class="mode-tab" data-mode="admin" role="tab">Admin Dashboard</button>
+      <button class="mode-tab" data-mode="split" role="tab">Split View</button>
+    </nav>
+    <div class="config-pill" id="config-pill" title="Active LLM provider">
+      <span class="dot" id="config-dot"></span>
+      <span id="config-label">connecting…</span>
+    </div>
+  </header>
+
+  <main class="layout mode-chat" id="layout">
+
+    <!-- ============ Customer chat ============ -->
+    <section class="panel chat-panel" id="chat-panel" aria-label="Customer chat">
+      <div class="panel-head">
+        <div>
+          <h2>Customer Chat</h2>
+          <div class="panel-sub">Session <code id="chat-session-id">new</code></div>
+        </div>
+        <div class="panel-actions">
+          <button class="btn subtle" id="btn-personas" title="Demo customer profiles">Demo customers</button>
+          <button class="btn subtle" id="btn-new-session" title="Start a fresh conversation">New session</button>
+        </div>
+      </div>
+
+      <div class="chat-scroll" id="chat-messages" aria-live="polite">
+        <div class="chat-welcome">
+          <div class="chat-welcome-title">👋 Welcome to Meridian Goods support</div>
+          <p>I can help with refunds, returns, and cancellations. To get started, tell me
+          what happened and share your <strong>account email</strong> and <strong>order ID</strong>.</p>
+          <p class="hint">Tip: open <em>Demo customers</em> above to grab a test profile, or press the
+          mic to speak instead of typing.</p>
+        </div>
+      </div>
+
+      <div class="agent-status" id="agent-status" hidden>
+        <span class="pulse"></span><span id="agent-status-text">Working…</span>
+      </div>
+
+      <form class="composer" id="composer">
+        <button type="button" class="icon-btn" id="btn-mic" title="Hold a conversation by voice (speech-to-text)" aria-label="Speak">
+          <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 3a3 3 0 0 1 3 3v5a3 3 0 0 1-6 0V6a3 3 0 0 1 3-3Z"/><path d="M5 11a7 7 0 0 0 14 0"/><path d="M12 18v3"/></svg>
+        </button>
+        <textarea id="chat-input" rows="1" placeholder="Type your message… (Enter to send)" maxlength="4000"></textarea>
+        <button type="button" class="icon-btn" id="btn-tts" title="Read agent replies aloud" aria-pressed="false" aria-label="Toggle voice replies">
+          <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 5 6 9H3v6h3l5 4V5Z"/><path d="M15.5 8.5a5 5 0 0 1 0 7"/><path d="M18.5 5.5a9.5 9.5 0 0 1 0 13"/></svg>
+        </button>
+        <button type="submit" class="btn primary" id="btn-send">Send</button>
+      </form>
+    </section>
+
+    <!-- ============ Admin dashboard ============ -->
+    <section class="panel admin-panel" id="admin-panel" aria-label="Admin dashboard">
+      <div class="panel-head">
+        <div>
+          <h2>Admin Dashboard</h2>
+          <div class="panel-sub"><span class="conn-dot" id="admin-conn"></span> <span id="admin-conn-text">connecting to event stream…</span></div>
+        </div>
+        <div class="panel-actions">
+          <label class="autoscroll-toggle"><input type="checkbox" id="log-autoscroll" checked /> Auto-scroll</label>
+        </div>
+      </div>
+
+      <div class="stat-row" id="stat-row">
+        <div class="stat-tile"><div class="stat-value" id="stat-sessions">0</div><div class="stat-label">Sessions</div></div>
+        <div class="stat-tile"><div class="stat-value" id="stat-refunds">0</div><div class="stat-label">Refunds <span class="stat-extra" id="stat-refund-amount">$0</span></div></div>
+        <div class="stat-tile"><div class="stat-value" id="stat-denials">0</div><div class="stat-label">Denials</div></div>
+        <div class="stat-tile"><div class="stat-value" id="stat-escalations">0</div><div class="stat-label">Escalations</div></div>
+        <div class="stat-tile"><div class="stat-value" id="stat-retries">0</div><div class="stat-label">Retries</div></div>
+        <div class="stat-tile"><div class="stat-value" id="stat-tokens">0</div><div class="stat-label">Tokens used</div></div>
+      </div>
+
+      <nav class="admin-tabs" role="tablist" aria-label="Admin sections">
+        <button class="admin-tab active" data-tab="log" role="tab">Reasoning Log</button>
+        <button class="admin-tab" data-tab="refunds" role="tab">Refunds</button>
+        <button class="admin-tab" data-tab="escalations" role="tab">Escalations</button>
+        <button class="admin-tab" data-tab="crm" role="tab">CRM</button>
+        <button class="admin-tab" data-tab="policy" role="tab">Policy</button>
+      </nav>
+
+      <div class="admin-body">
+        <div class="admin-view active" data-view="log">
+          <div class="log-filters">
+            <select id="log-session-filter" title="Filter by session">
+              <option value="__current__" selected>Current session</option>
+              <option value="">All sessions</option>
+            </select>
+            <div class="chip-row" id="log-type-chips">
+              <button class="chip active" data-group="all">All</button>
+              <button class="chip" data-group="llm">LLM</button>
+              <button class="chip" data-group="tools">Tools</button>
+              <button class="chip" data-group="policy">Policy</button>
+              <button class="chip" data-group="failures">Failures &amp; retries</button>
+            </div>
+          </div>
+          <div class="log-feed" id="log-feed"></div>
+        </div>
+
+        <div class="admin-view" data-view="refunds">
+          <table class="data-table" id="refunds-table">
+            <thead><tr><th>ID</th><th>Order</th><th>Customer</th><th>Items</th><th class="num">Amount</th><th>Method</th><th>Date</th></tr></thead>
+            <tbody></tbody>
+          </table>
+          <div class="empty-note" id="refunds-empty">No refunds processed yet.</div>
+        </div>
+
+        <div class="admin-view" data-view="escalations">
+          <table class="data-table" id="escalations-table">
+            <thead><tr><th>Ticket</th><th>Customer</th><th>Order</th><th>Summary</th><th>SLA</th><th>Status</th></tr></thead>
+            <tbody></tbody>
+          </table>
+          <div class="empty-note" id="escalations-empty">No escalation tickets yet.</div>
+        </div>
+
+        <div class="admin-view" data-view="crm">
+          <div class="crm-grid" id="crm-grid"></div>
+        </div>
+
+        <div class="admin-view" data-view="policy">
+          <article class="policy-doc" id="policy-doc">Loading policy…</article>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <!-- Demo customer picker -->
+  <dialog id="personas-dialog">
+    <div class="dialog-head">
+      <h3>Demo customer profiles</h3>
+      <button class="icon-btn" id="personas-close" aria-label="Close">✕</button>
+    </div>
+    <p class="dialog-sub">Each profile is seeded to exercise a different policy rule.
+    Click an email or order ID to copy it.</p>
+    <div class="personas-list" id="personas-list">Loading…</div>
+  </dialog>
+
+  <script type="module" src="/js/app.js"></script>
+</body>
+</html>

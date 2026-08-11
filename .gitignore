@@ -1,0 +1,19 @@
+# Environments & secrets
+# Ignore every .env variant (.env.local, .env.groq.bak, …) and re-admit only
+# the placeholder template. A plain `.env` rule missed a backup file holding
+# live keys; this errs the safe way by default.
+.env
+.env.*
+*.bak
+!.env.example
+.venv/
+
+# Python
+__pycache__/
+*.pyc
+.pytest_cache/
+
+# OS / editor
+.DS_Store
+.claude/
+.vscode/

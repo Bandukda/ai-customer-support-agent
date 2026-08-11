@@ -1,0 +1,40 @@
+# Lint / import-order config. The VS Code Ruff extension reads this
+# automatically, so the editor and the repo agree on one style.
+#
+#   make lint                              # report
+#   .venv/bin/ruff check --fix backend/    # apply the safe fixes
+#
+# Note: without this file the extension falls back to Ruff's own defaults,
+# which vary by Ruff version — pinning the rule set here is what stops the
+# editor from lighting up differently than `make lint`.
+
+# The codebase was written at roughly this width; picking a narrower limit
+# would flag ~25 pre-existing lines in policy.py without improving any of them.
+line-length = 120
+
+[lint]
+select = [
+    "E", "W",   # pycodestyle
+    "F",        # pyflakes — unused imports and names
+    "I",        # isort — import grouping and order
+    "UP",       # pyupgrade — keep syntax current for the 3.12 target
+    "B",        # bugbear — likely bugs (mutable defaults, loop-variable capture)
+    "SIM",      # simplify
+    "C4",       # comprehension style
+    "PIE",      # misc. dead code
+    "RUF",      # Ruff's own rules, incl. unused `noqa` directives
+    "DTZ",      # naive datetime/date usage
+    "BLE",      # blind `except Exception`
+]
+
+ignore = [
+    # The prose in docstrings and comments deliberately uses en/em dashes
+    # (e.g. "rules R1–R11"); these rules flag them as ambiguous Unicode.
+    "RUF001", "RUF002", "RUF003",
+]
+
+[lint.isort]
+# Without this, Ruff files our own packages under third-party and interleaves
+# them with pytest/fastapi — e.g. `from app.config import settings` landing
+# between `import pytest` and `from fastapi...`.
+known-first-party = ["app", "tests"]

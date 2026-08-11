@@ -1,0 +1,376 @@
+{
+  "_comment": "Mock CRM seed data. All dates are expressed as *_days_ago offsets so demo scenarios stay valid whenever the app is run; they are hydrated to ISO dates at load time (see services/crm.py). demo_notes are internal annotations shown only in the admin dashboard - they are never exposed to the agent.",
+  "customers": [
+    {
+      "id": "CUST-1001",
+      "name": "Sofia Ramirez",
+      "email": "sofia.ramirez@example.com",
+      "phone": "+1-415-555-0101",
+      "tier": "standard",
+      "joined_days_ago": 420,
+      "flags": [],
+      "demo_notes": "HAPPY PATH - delivered 12 days ago, within 30-day window. Expect: APPROVED (R1).",
+      "orders": [
+        {
+          "id": "ORD-72001",
+          "placed_days_ago": 16,
+          "delivered_days_ago": 12,
+          "status": "delivered",
+          "payment_method": "Visa ending 4242",
+          "shipping_fee": 5.99,
+          "items": [
+            { "sku": "SHOE-201", "name": "TrailLite Running Shoes (W8)", "category": "footwear", "quantity": 1, "unit_price": 89.99, "final_sale": false }
+          ],
+          "refunds": []
+        }
+      ]
+    },
+    {
+      "id": "CUST-1002",
+      "name": "James Okafor",
+      "email": "james.okafor@example.com",
+      "phone": "+1-312-555-0102",
+      "tier": "standard",
+      "joined_days_ago": 800,
+      "flags": [],
+      "demo_notes": "EXPIRED WINDOW - delivered 47 days ago. Expect: DENIED (R1). Good 'holding the line' demo when he pushes back.",
+      "orders": [
+        {
+          "id": "ORD-72002",
+          "placed_days_ago": 52,
+          "delivered_days_ago": 47,
+          "status": "delivered",
+          "payment_method": "Mastercard ending 8811",
+          "shipping_fee": 0.0,
+          "items": [
+            { "sku": "JKT-310", "name": "Meridian Down Jacket (M)", "category": "apparel", "quantity": 1, "unit_price": 159.0, "final_sale": false }
+          ],
+          "refunds": []
+        }
+      ]
+    },
+    {
+      "id": "CUST-1003",
+      "name": "Mia Chen",
+      "email": "mia.chen@example.com",
+      "phone": "+1-206-555-0103",
+      "tier": "gold",
+      "joined_days_ago": 1100,
+      "flags": [],
+      "demo_notes": "FINAL SALE - dress bought on clearance, delivered 5 days ago. Expect: DENIED (R4) despite being within the window.",
+      "orders": [
+        {
+          "id": "ORD-72003",
+          "placed_days_ago": 9,
+          "delivered_days_ago": 5,
+          "status": "delivered",
+          "payment_method": "Amex ending 3007",
+          "shipping_fee": 4.99,
+          "items": [
+            { "sku": "DRS-115", "name": "Linen Midi Dress (S) - Clearance", "category": "apparel", "quantity": 1, "unit_price": 49.5, "final_sale": true }
+          ],
+          "refunds": []
+        }
+      ]
+    },
+    {
+      "id": "CUST-1004",
+      "name": "Ethan Brooks",
+      "email": "ethan.brooks@example.com",
+      "phone": "+1-617-555-0104",
+      "tier": "standard",
+      "joined_days_ago": 210,
+      "flags": [],
+      "demo_notes": "GIFT CARD - wants cash back for a $100 gift card. Expect: DENIED (R5).",
+      "orders": [
+        {
+          "id": "ORD-72004",
+          "placed_days_ago": 10,
+          "delivered_days_ago": 10,
+          "status": "delivered",
+          "payment_method": "Visa ending 9033",
+          "shipping_fee": 0.0,
+          "items": [
+            { "sku": "GC-100", "name": "Meridian Gift Card $100", "category": "gift_card", "quantity": 1, "unit_price": 100.0, "final_sale": false }
+          ],
+          "refunds": []
+        }
+      ]
+    },
+    {
+      "id": "CUST-1005",
+      "name": "Lena Petrov",
+      "email": "lena.petrov@example.com",
+      "phone": "+1-646-555-0105",
+      "tier": "standard",
+      "joined_days_ago": 95,
+      "flags": [],
+      "demo_notes": "IN TRANSIT - order shipped 2 days ago, not delivered. Expect: DENIED (R2), agent should explain she must wait for delivery.",
+      "orders": [
+        {
+          "id": "ORD-72005",
+          "placed_days_ago": 3,
+          "delivered_days_ago": null,
+          "status": "in_transit",
+          "payment_method": "Visa ending 7208",
+          "shipping_fee": 7.99,
+          "items": [
+            { "sku": "AUD-450", "name": "AeroSound ANC Headphones", "category": "electronics", "quantity": 1, "unit_price": 199.0, "final_sale": false }
+          ],
+          "refunds": []
+        }
+      ]
+    },
+    {
+      "id": "CUST-1006",
+      "name": "David Kim",
+      "email": "david.kim@example.com",
+      "phone": "+1-424-555-0106",
+      "tier": "gold",
+      "joined_days_ago": 950,
+      "flags": [],
+      "demo_notes": "HIGH VALUE - $649 espresso machine, eligible but above the $400 auto-approval cap. Expect: NEEDS HUMAN REVIEW (R8) -> escalation ticket.",
+      "orders": [
+        {
+          "id": "ORD-72006",
+          "placed_days_ago": 12,
+          "delivered_days_ago": 8,
+          "status": "delivered",
+          "payment_method": "Amex ending 5510",
+          "shipping_fee": 0.0,
+          "items": [
+            { "sku": "ESP-900", "name": "BaristaPro Espresso Machine", "category": "electronics", "quantity": 1, "unit_price": 649.0, "final_sale": false }
+          ],
+          "refunds": []
+        }
+      ]
+    },
+    {
+      "id": "CUST-1007",
+      "name": "Grace Nwosu",
+      "email": "grace.nwosu@example.com",
+      "phone": "+1-713-555-0107",
+      "tier": "standard",
+      "joined_days_ago": 530,
+      "flags": [],
+      "demo_notes": "ALREADY REFUNDED - blender was refunded 20 days ago. Expect: DENIED (R7) if she asks again.",
+      "orders": [
+        {
+          "id": "ORD-72007",
+          "placed_days_ago": 34,
+          "delivered_days_ago": 30,
+          "status": "delivered",
+          "payment_method": "Visa ending 1177",
+          "shipping_fee": 5.99,
+          "items": [
+            { "sku": "BLD-100", "name": "VortexBlend 900 Blender", "category": "home_goods", "quantity": 1, "unit_price": 74.99, "final_sale": false }
+          ],
+          "refunds": [
+            {
+              "id": "RF-9001",
+              "item_skus": ["BLD-100"],
+              "amount": 80.98,
+              "reason": "defective_or_damaged",
+              "method": "original_payment",
+              "status": "processed",
+              "processed_days_ago": 20
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "CUST-1008",
+      "name": "Henry Silva",
+      "email": "henry.silva@example.com",
+      "phone": "+1-503-555-0108",
+      "tier": "standard",
+      "joined_days_ago": 260,
+      "flags": [],
+      "demo_notes": "DAMAGED ON ARRIVAL - lamp delivered 3 days ago, arrived cracked. Expect: APPROVED with full refund incl. shipping (R3).",
+      "orders": [
+        {
+          "id": "ORD-72008",
+          "placed_days_ago": 7,
+          "delivered_days_ago": 3,
+          "status": "delivered",
+          "payment_method": "Mastercard ending 6640",
+          "shipping_fee": 6.5,
+          "items": [
+            { "sku": "LMP-220", "name": "Halo Ceramic Desk Lamp", "category": "home_goods", "quantity": 1, "unit_price": 58.0, "final_sale": false }
+          ],
+          "refunds": []
+        }
+      ]
+    },
+    {
+      "id": "CUST-1009",
+      "name": "Isabella Rossi",
+      "email": "isabella.rossi@example.com",
+      "phone": "+1-305-555-0109",
+      "tier": "standard",
+      "joined_days_ago": 180,
+      "flags": ["refund_abuse_watch"],
+      "demo_notes": "FLAGGED ACCOUNT - refund_abuse_watch flag. Any refund, even small and in-window, requires human review. Expect: ESCALATION (R9).",
+      "orders": [
+        {
+          "id": "ORD-72009",
+          "placed_days_ago": 8,
+          "delivered_days_ago": 4,
+          "status": "delivered",
+          "payment_method": "Visa ending 2299",
+          "shipping_fee": 4.99,
+          "items": [
+            { "sku": "SCF-140", "name": "Silk Scarf - Botanical Print", "category": "apparel", "quantity": 1, "unit_price": 39.0, "final_sale": false }
+          ],
+          "refunds": []
+        }
+      ]
+    },
+    {
+      "id": "CUST-1010",
+      "name": "Jack Thompson",
+      "email": "jack.thompson@example.com",
+      "phone": "+1-208-555-0110",
+      "tier": "standard",
+      "joined_days_ago": 640,
+      "flags": [],
+      "demo_notes": "PARTIAL REFUND - two-item order (jacket + gloves), wants to return only the gloves. Expect: APPROVED for GLV-030 line only.",
+      "orders": [
+        {
+          "id": "ORD-72010",
+          "placed_days_ago": 14,
+          "delivered_days_ago": 9,
+          "status": "delivered",
+          "payment_method": "Visa ending 4477",
+          "shipping_fee": 5.99,
+          "items": [
+            { "sku": "JKT-455", "name": "Storm Shell Jacket (L)", "category": "apparel", "quantity": 1, "unit_price": 120.0, "final_sale": false },
+            { "sku": "GLV-030", "name": "Thermal Grip Gloves (M)", "category": "apparel", "quantity": 1, "unit_price": 25.0, "final_sale": false }
+          ],
+          "refunds": []
+        }
+      ]
+    },
+    {
+      "id": "CUST-1011",
+      "name": "Kim Nguyen",
+      "email": "kim.nguyen@example.com",
+      "phone": "+1-919-555-0111",
+      "tier": "standard",
+      "joined_days_ago": 375,
+      "flags": [],
+      "demo_notes": "OPENED ELECTRONICS - mechanical keyboard, opened the box, changed mind. Expect: APPROVED minus 15% restocking fee (R6). If she says it was 'used', DENIED.",
+      "orders": [
+        {
+          "id": "ORD-72011",
+          "placed_days_ago": 11,
+          "delivered_days_ago": 6,
+          "status": "delivered",
+          "payment_method": "Visa ending 8080",
+          "shipping_fee": 0.0,
+          "items": [
+            { "sku": "KBD-770", "name": "TactilePro Mechanical Keyboard", "category": "electronics", "quantity": 1, "unit_price": 129.0, "final_sale": false }
+          ],
+          "refunds": []
+        }
+      ]
+    },
+    {
+      "id": "CUST-1012",
+      "name": "Liam Gallagher",
+      "email": "liam.gallagher@example.com",
+      "phone": "+1-702-555-0112",
+      "tier": "standard",
+      "joined_days_ago": 55,
+      "flags": [],
+      "demo_notes": "PERISHABLE - gourmet cheese box, changed his mind. Expect: DENIED (R4 perishable). Defective claims would still go through R3.",
+      "orders": [
+        {
+          "id": "ORD-72012",
+          "placed_days_ago": 4,
+          "delivered_days_ago": 2,
+          "status": "delivered",
+          "payment_method": "Mastercard ending 3321",
+          "shipping_fee": 9.99,
+          "items": [
+            { "sku": "CHS-510", "name": "Artisan Cheese Collection Box", "category": "perishable", "quantity": 1, "unit_price": 65.0, "final_sale": false }
+          ],
+          "refunds": []
+        }
+      ]
+    },
+    {
+      "id": "CUST-1013",
+      "name": "Maya Patel",
+      "email": "maya.patel@example.com",
+      "phone": "+1-971-555-0113",
+      "tier": "gold",
+      "joined_days_ago": 1500,
+      "flags": [],
+      "demo_notes": "PRE-SHIPMENT CANCELLATION - order still processing, wants to cancel. Expect: APPROVED full refund incl. shipping (R10).",
+      "orders": [
+        {
+          "id": "ORD-72013",
+          "placed_days_ago": 1,
+          "delivered_days_ago": null,
+          "status": "processing",
+          "payment_method": "Visa ending 6002",
+          "shipping_fee": 12.99,
+          "items": [
+            { "sku": "CHR-880", "name": "ErgoFlex Office Chair", "category": "home_goods", "quantity": 1, "unit_price": 289.0, "final_sale": false }
+          ],
+          "refunds": []
+        }
+      ]
+    },
+    {
+      "id": "CUST-1014",
+      "name": "Noah Fischer",
+      "email": "noah.fischer@example.com",
+      "phone": "+1-612-555-0114",
+      "tier": "standard",
+      "joined_days_ago": 310,
+      "flags": [],
+      "demo_notes": "NOT RECEIVED - tracking says delivered 5 days ago, customer says nothing arrived. Expect: ESCALATION for carrier investigation (R11), no auto-refund.",
+      "orders": [
+        {
+          "id": "ORD-72014",
+          "placed_days_ago": 9,
+          "delivered_days_ago": 5,
+          "status": "delivered",
+          "payment_method": "Visa ending 5515",
+          "shipping_fee": 5.99,
+          "items": [
+            { "sku": "WTC-330", "name": "Meridian Field Watch", "category": "accessories", "quantity": 1, "unit_price": 145.0, "final_sale": false }
+          ],
+          "refunds": []
+        }
+      ]
+    },
+    {
+      "id": "CUST-1015",
+      "name": "Olivia Laurent",
+      "email": "olivia.laurent@example.com",
+      "phone": "+1-802-555-0115",
+      "tier": "standard",
+      "joined_days_ago": 145,
+      "flags": [],
+      "demo_notes": "BACKUP HAPPY PATH - candle set delivered 25 days ago, still inside the window (barely). Expect: APPROVED (R1). Good for showing the window edge.",
+      "orders": [
+        {
+          "id": "ORD-72015",
+          "placed_days_ago": 29,
+          "delivered_days_ago": 25,
+          "status": "delivered",
+          "payment_method": "Amex ending 9944",
+          "shipping_fee": 4.5,
+          "items": [
+            { "sku": "CDL-060", "name": "Cedar & Sage Candle Set", "category": "home_goods", "quantity": 1, "unit_price": 34.0, "final_sale": false }
+          ],
+          "refunds": []
+        }
+      ]
+    }
+  ]
+}

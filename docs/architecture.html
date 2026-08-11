@@ -1,0 +1,1034 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Meridian Assist — Architecture</title>
+<style>
+:root {
+  --ground:#e9eef0; --surface:#ffffff; --surface-2:#f4f8f9; --surface-3:#e3eaec;
+  --ink:#0c1a1e; --ink-2:#42585f; --ink-3:#7b939a;
+  --line:#d2dde0; --line-2:#bccace;
+  --accent:#0c7d90; --accent-bright:#12a5bd; --accent-wash:#dcedf0;
+  --ok:#17754a; --ok-wash:#dcefe4;
+  --warn:#9d6206; --warn-wash:#f8ecd8;
+  --stop:#b23127; --stop-wash:#f8e3e0;
+  --llm:#4a4fb0; --llm-wash:#e4e5f6;
+  --mono:ui-monospace,SFMono-Regular,"SF Mono",Menlo,Consolas,monospace;
+  --sans:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+  --shadow:0 1px 2px rgba(12,26,30,.05),0 8px 28px rgba(12,26,30,.07);
+  --col:1140px;
+}
+@media (prefers-color-scheme:dark){
+  :root{
+    --ground:#081215; --surface:#0e1c20; --surface-2:#132428; --surface-3:#182e33;
+    --ink:#e7f0f2; --ink-2:#9cb2b8; --ink-3:#6a848b;
+    --line:#1d3138; --line-2:#294248;
+    --accent:#39c8e0; --accent-bright:#5cdcf1; --accent-wash:#0d2f38;
+    --ok:#46c684; --ok-wash:#0d2c20;
+    --warn:#e3a83c; --warn-wash:#33260d;
+    --stop:#f0705f; --stop-wash:#361713;
+    --llm:#8f93e8; --llm-wash:#1b1d3d;
+    --shadow:0 1px 2px rgba(0,0,0,.4),0 8px 28px rgba(0,0,0,.35);
+  }
+}
+:root[data-theme="dark"]{
+  --ground:#081215; --surface:#0e1c20; --surface-2:#132428; --surface-3:#182e33;
+  --ink:#e7f0f2; --ink-2:#9cb2b8; --ink-3:#6a848b;
+  --line:#1d3138; --line-2:#294248;
+  --accent:#39c8e0; --accent-bright:#5cdcf1; --accent-wash:#0d2f38;
+  --ok:#46c684; --ok-wash:#0d2c20;
+  --warn:#e3a83c; --warn-wash:#33260d;
+  --stop:#f0705f; --stop-wash:#361713;
+  --llm:#8f93e8; --llm-wash:#1b1d3d;
+  --shadow:0 1px 2px rgba(0,0,0,.4),0 8px 28px rgba(0,0,0,.35);
+}
+:root[data-theme="light"]{
+  --ground:#e9eef0; --surface:#ffffff; --surface-2:#f4f8f9; --surface-3:#e3eaec;
+  --ink:#0c1a1e; --ink-2:#42585f; --ink-3:#7b939a;
+  --line:#d2dde0; --line-2:#bccace;
+  --accent:#0c7d90; --accent-bright:#12a5bd; --accent-wash:#dcedf0;
+  --ok:#17754a; --ok-wash:#dcefe4;
+  --warn:#9d6206; --warn-wash:#f8ecd8;
+  --stop:#b23127; --stop-wash:#f8e3e0;
+  --llm:#4a4fb0; --llm-wash:#e4e5f6;
+  --shadow:0 1px 2px rgba(12,26,30,.05),0 8px 28px rgba(12,26,30,.07);
+}
+
+*{box-sizing:border-box}
+html{scroll-behavior:smooth}
+body{
+  margin:0;background:var(--ground);color:var(--ink);
+  font-family:var(--sans);font-size:16px;line-height:1.6;
+  -webkit-font-smoothing:antialiased;
+}
+h1,h2,h3{text-wrap:balance;margin:0}
+p{margin:0}
+a{color:var(--accent);text-underline-offset:3px}
+:focus-visible{outline:2px solid var(--accent-bright);outline-offset:3px;border-radius:3px}
+
+/* ── progress rail ─────────────────────────────────────────── */
+.rail{position:fixed;top:0;left:0;right:0;height:2px;background:transparent;z-index:60}
+.rail i{display:block;height:100%;width:0%;background:linear-gradient(90deg,var(--accent),var(--accent-bright))}
+
+.wrap{max-width:var(--col);margin:0 auto;padding:0 28px}
+.prose{max-width:70ch}
+
+/* ── eyebrow / section furniture ───────────────────────────── */
+.eyebrow{
+  font-family:var(--mono);font-size:11.5px;letter-spacing:.16em;text-transform:uppercase;
+  color:var(--accent);display:flex;align-items:center;gap:12px;margin-bottom:18px;
+}
+.eyebrow::after{content:"";flex:1;height:1px;background:var(--line)}
+section{padding:76px 0;border-top:1px solid var(--line)}
+section:first-of-type{border-top:0}
+h2{font-size:clamp(26px,3.4vw,38px);font-weight:800;letter-spacing:-.032em;line-height:1.1}
+h3{font-size:15px;font-weight:700;letter-spacing:-.01em}
+.lede{color:var(--ink-2);font-size:17px;margin-top:14px}
+.note{color:var(--ink-3);font-size:13.5px;margin-top:10px}
+
+/* ── hero ──────────────────────────────────────────────────── */
+.hero{padding:76px 0 60px;border-top:0}
+.badge{
+  display:inline-flex;align-items:center;gap:8px;font-family:var(--mono);font-size:11.5px;
+  letter-spacing:.1em;text-transform:uppercase;color:var(--ink-2);
+  background:var(--surface);border:1px solid var(--line);border-radius:999px;padding:6px 14px;
+}
+.badge b{color:var(--ok);font-weight:700}
+h1{font-size:clamp(38px,6.6vw,76px);font-weight:800;letter-spacing:-.045em;line-height:1.02;margin:26px 0 0}
+h1 em{font-style:normal;color:var(--accent);display:block}
+.hero .lede{font-size:19px;max-width:60ch}
+.metrics{display:flex;flex-wrap:wrap;gap:0;margin-top:34px;border:1px solid var(--line);
+  border-radius:12px;overflow:hidden;background:var(--surface)}
+.metric{flex:1 1 130px;padding:16px 18px;border-right:1px solid var(--line)}
+.metric:last-child{border-right:0}
+.metric b{display:block;font-family:var(--mono);font-size:24px;font-weight:600;
+  letter-spacing:-.02em;font-variant-numeric:tabular-nums}
+.metric span{display:block;font-family:var(--mono);font-size:10.5px;letter-spacing:.11em;
+  text-transform:uppercase;color:var(--ink-3);margin-top:4px}
+
+/* ── panels ────────────────────────────────────────────────── */
+.panel{
+  background:var(--surface);border:1px solid var(--line);border-radius:14px;
+  box-shadow:var(--shadow);overflow:hidden;margin-top:30px;
+}
+.panel-bar{
+  display:flex;align-items:center;gap:10px;padding:11px 16px;
+  border-bottom:1px solid var(--line);background:var(--surface-2);
+  font-family:var(--mono);font-size:11.5px;letter-spacing:.08em;text-transform:uppercase;color:var(--ink-3);
+}
+.panel-bar .dot{width:8px;height:8px;border-radius:50%;background:var(--ok);flex:none}
+.panel-bar .spacer{flex:1}
+.scroll-x{overflow-x:auto}
+
+/* ── live trace ────────────────────────────────────────────── */
+.trace{font-family:var(--mono);font-size:12.5px;padding:8px 0;min-height:322px}
+.row{display:flex;align-items:flex-start;gap:12px;padding:5px 16px;opacity:0;transform:translateY(6px)}
+.row.in{opacity:1;transform:none;transition:opacity .34s ease,transform .34s ease}
+.row .t{color:var(--ink-3);flex:none;font-variant-numeric:tabular-nums}
+.row .txt{color:var(--ink-2);flex:1;min-width:0}
+.row .txt b{color:var(--ink);font-weight:600}
+.tag{
+  flex:none;font-size:10px;font-weight:700;letter-spacing:.09em;text-transform:uppercase;
+  padding:2px 8px;border-radius:4px;border:1px solid transparent;min-width:96px;text-align:center;
+}
+.t-llm{background:var(--llm-wash);color:var(--llm)}
+.t-tool{background:var(--accent-wash);color:var(--accent)}
+.t-policy{background:var(--surface-3);color:var(--ink-2)}
+.t-ok{background:var(--ok-wash);color:var(--ok)}
+.t-warn{background:var(--warn-wash);color:var(--warn)}
+.t-stop{background:var(--stop-wash);color:var(--stop)}
+.verdict{margin-left:auto;flex:none;font-weight:700;font-size:11px;letter-spacing:.06em}
+.v-ok{color:var(--ok)} .v-stop{color:var(--stop)} .v-warn{color:var(--warn)}
+.replay{
+  font-family:var(--mono);font-size:11px;letter-spacing:.09em;text-transform:uppercase;
+  background:transparent;border:1px solid var(--line-2);color:var(--ink-2);
+  padding:4px 12px;border-radius:6px;cursor:pointer;
+}
+.replay:hover{border-color:var(--accent);color:var(--accent)}
+
+/* ── generic grids ─────────────────────────────────────────── */
+.grid{display:grid;gap:14px;margin-top:26px}
+.g2{grid-template-columns:repeat(2,1fr)}
+.g3{grid-template-columns:repeat(3,1fr)}
+.g4{grid-template-columns:repeat(4,1fr)}
+.card{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:18px}
+.card p{color:var(--ink-2);font-size:13.5px;margin-top:7px}
+.card .k{font-family:var(--mono);font-size:11px;letter-spacing:.1em;text-transform:uppercase;
+  color:var(--ink-3);display:block;margin-bottom:9px}
+
+/* ── layer stack (defense in depth) ────────────────────────── */
+.layers{display:flex;flex-direction:column;gap:10px;margin-top:26px}
+.layer{
+  display:grid;grid-template-columns:44px 1fr;gap:16px;align-items:center;
+  background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:15px 18px;
+  border-left:3px solid var(--accent);
+}
+.layer .n{font-family:var(--mono);font-size:12px;color:var(--accent);font-weight:600}
+.layer p{color:var(--ink-2);font-size:13.5px;margin-top:5px}
+.layer code{font-family:var(--mono);font-size:12px;background:var(--surface-2);
+  padding:1px 6px;border-radius:4px;border:1px solid var(--line)}
+
+/* ── loop diagram ──────────────────────────────────────────── */
+.loop{display:flex;align-items:stretch;gap:0;padding:26px 18px;min-width:760px}
+.node{
+  flex:1;text-align:center;padding:16px 12px;border:1px solid var(--line);border-radius:11px;
+  background:var(--surface-2);position:relative;transition:border-color .3s,background .3s,transform .3s;
+}
+.node.hot{border-color:var(--accent);background:var(--accent-wash);transform:translateY(-3px)}
+.node .lbl{font-family:var(--mono);font-size:11px;letter-spacing:.09em;text-transform:uppercase;
+  color:var(--ink-3);display:block}
+.node .nm{font-weight:700;font-size:14px;margin-top:6px;display:block;letter-spacing:-.01em}
+.node .sub{font-size:11.5px;color:var(--ink-3);margin-top:4px;display:block;font-family:var(--mono)}
+.arrow{flex:none;width:36px;display:grid;place-items:center;color:var(--line-2);font-size:17px}
+.loopback{
+  font-family:var(--mono);font-size:11px;color:var(--ink-3);text-align:center;
+  padding:0 18px 20px;letter-spacing:.05em;
+}
+
+/* ── system flowchart ──────────────────────────────────────── */
+.flow-wrap{padding:10px 0 0}
+#flow{display:block;width:100%;height:auto;min-width:940px}
+.fnode rect{fill:var(--surface-2);stroke:var(--line-2);stroke-width:1.5;
+  transition:fill .35s ease,stroke .35s ease}
+.fnode .nlabel{fill:var(--ink);font-family:var(--mono);font-size:12px;font-weight:600}
+.fnode .nsub{fill:var(--ink-3);font-family:var(--mono);font-size:10px}
+.fnode.on rect{fill:var(--accent-wash);stroke:var(--accent);stroke-width:2}
+.fnode.on .nlabel{fill:var(--accent)}
+.fnode.done rect{stroke:var(--accent)}
+.fnode.ext rect{stroke-dasharray:5 3}
+.fnode.data rect{fill:var(--surface-3)}
+.band{fill:none;stroke:var(--line);stroke-width:1;stroke-dasharray:3 4}
+.bandlbl{fill:var(--ink-3);font-family:var(--mono);font-size:9.5px;letter-spacing:.14em;
+  text-transform:uppercase}
+.link{fill:none;stroke:var(--line-2);stroke-width:1.6;transition:stroke .35s ease}
+.link.lit{stroke:var(--accent);stroke-width:2.4}
+.link.evt{stroke-dasharray:4 4;opacity:.75}
+#packet{fill:var(--accent-bright);filter:drop-shadow(0 0 6px var(--accent-bright));opacity:0}
+.flow-ctl{display:flex;align-items:center;gap:14px;padding:12px 16px;border-top:1px solid var(--line);
+  background:var(--surface-2);font-family:var(--mono);font-size:11.5px;color:var(--ink-2)}
+.flow-ctl .step{flex:1;color:var(--ink-2)}
+.flow-ctl .step b{color:var(--accent);font-weight:600}
+
+/* ── tech stack ────────────────────────────────────────────── */
+.stack{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin-top:26px}
+.tcol{background:var(--surface);border:1px solid var(--line);border-radius:12px;overflow:hidden}
+.tcol h3{padding:12px 16px;border-bottom:1px solid var(--line);background:var(--surface-2);
+  font-family:var(--mono);font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:var(--accent)}
+.tcol ul{list-style:none;margin:0;padding:6px 0}
+.tcol li{display:flex;align-items:baseline;gap:10px;padding:7px 16px;font-size:13.5px}
+.tcol li b{font-weight:600;color:var(--ink)}
+.tcol li .v{margin-left:auto;font-family:var(--mono);font-size:11px;color:var(--ink-3);
+  font-variant-numeric:tabular-nums;flex:none}
+.tcol li .why{display:block;color:var(--ink-3);font-size:12px;margin-top:2px}
+.tcol li>div{min-width:0}
+
+/* ── rules ─────────────────────────────────────────────────── */
+.rules{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-top:26px}
+.rule{
+  background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:13px 14px;
+  transition:border-color .2s,transform .2s;cursor:default;
+}
+.rule:hover{border-color:var(--accent);transform:translateY(-2px)}
+.rule .id{font-family:var(--mono);font-weight:700;font-size:12.5px;color:var(--accent)}
+.rule .ttl{font-weight:650;font-size:13px;margin-top:5px;letter-spacing:-.01em}
+.rule .dsc{font-size:12px;color:var(--ink-3);margin-top:4px;line-height:1.45}
+.rule[data-k="stop"] .id{color:var(--stop)}
+.rule[data-k="warn"] .id{color:var(--warn)}
+.rule[data-k="ok"] .id{color:var(--ok)}
+
+/* ── tables ────────────────────────────────────────────────── */
+table{width:100%;border-collapse:collapse;font-size:13.5px;min-width:640px}
+th{
+  text-align:left;font-family:var(--mono);font-size:10.5px;letter-spacing:.1em;text-transform:uppercase;
+  color:var(--ink-3);padding:11px 16px;border-bottom:1px solid var(--line-2);font-weight:600;
+}
+td{padding:11px 16px;border-bottom:1px solid var(--line);color:var(--ink-2);vertical-align:top}
+tr:last-child td{border-bottom:0}
+td b{color:var(--ink);font-weight:600}
+td code,.mono{font-family:var(--mono);font-size:12.5px}
+
+/* ── file tree ─────────────────────────────────────────────── */
+.tree{font-family:var(--mono);font-size:13px;padding:18px 16px;min-width:660px}
+.f{display:grid;grid-template-columns:minmax(0,1fr) 62px 168px;gap:14px;align-items:center;padding:3px 0}
+.f .nm{white-space:pre;color:var(--ink-2);overflow:hidden;text-overflow:ellipsis}
+.f .nm b{color:var(--ink);font-weight:600}
+.f .nm i{color:var(--ink-3);font-style:normal}
+.f .loc{text-align:right;color:var(--ink-3);font-size:11.5px;font-variant-numeric:tabular-nums}
+.bar{height:5px;border-radius:3px;background:var(--surface-3);overflow:hidden}
+.bar i{display:block;height:100%;width:0;background:var(--accent);border-radius:3px;
+  transition:width .9s cubic-bezier(.2,.7,.3,1)}
+.f.dir .nm b{color:var(--accent)}
+.f.dir .bar{background:transparent}
+
+/* ── callout ───────────────────────────────────────────────── */
+.callout{
+  border:1px solid var(--line);border-left:3px solid var(--accent);border-radius:10px;
+  background:var(--surface);padding:18px 20px;margin-top:26px;
+}
+.callout .k{font-family:var(--mono);font-size:10.5px;letter-spacing:.12em;text-transform:uppercase;
+  color:var(--accent);display:block;margin-bottom:8px}
+.callout p{color:var(--ink-2);font-size:14px}
+
+/* ── reveal ────────────────────────────────────────────────── */
+.rv{opacity:0;transform:translateY(14px)}
+.rv.on{opacity:1;transform:none;transition:opacity .6s ease,transform .6s cubic-bezier(.2,.7,.3,1)}
+
+footer{padding:50px 0 70px;border-top:1px solid var(--line);color:var(--ink-3);font-size:13px}
+footer .mono{color:var(--ink-2)}
+
+@media (max-width:900px){
+  .g3,.g4,.rules{grid-template-columns:repeat(2,1fr)}
+  .g2{grid-template-columns:1fr}
+}
+@media (prefers-reduced-motion:reduce){
+  html{scroll-behavior:auto}
+  .rv,.row{opacity:1!important;transform:none!important;transition:none!important}
+  .bar i{transition:none}
+}
+</style>
+</head>
+<body>
+<div class="rail"><i id="rail"></i></div>
+
+<div class="wrap">
+
+<!-- ══ HERO ══ -->
+<section class="hero">
+  <span class="badge"><b>●</b> 105 tests passing · 15/15 scenarios verified live</span>
+  <h1>The LLM talks.<em>The code decides.</em></h1>
+  <p class="lede">Meridian Assist is an AI customer-support agent that processes or denies
+  e-commerce refunds. The model runs the conversation and chooses tools — but eligibility
+  and every dollar figure come from a deterministic policy engine that cannot be argued with.
+  That separation is the whole architecture.</p>
+
+  <div class="metrics">
+    <div class="metric"><b>2,552</b><span>python</span></div>
+    <div class="metric"><b>1,456</b><span>frontend</span></div>
+    <div class="metric"><b>1,180</b><span>test code</span></div>
+    <div class="metric"><b>12</b><span>policy rules</span></div>
+    <div class="metric"><b>5</b><span>agent tools</span></div>
+    <div class="metric"><b>15</b><span>event types</span></div>
+    <div class="metric"><b>13</b><span>endpoints</span></div>
+  </div>
+
+  <div class="panel">
+    <div class="panel-bar">
+      <span class="dot"></span> reasoning log — live trace
+      <span class="spacer"></span>
+      <button class="replay" id="replay">▸ replay</button>
+    </div>
+    <div class="trace" id="trace"></div>
+  </div>
+  <p class="note">Every step the agent takes is emitted as a typed event and streamed to the
+  admin dashboard over SSE. This is a real trace: a customer asks for a refund, the engine
+  approves it, the customer confirms, the ledger is written.</p>
+</section>
+
+<!-- ══ THESIS ══ -->
+<section>
+  <div class="eyebrow">the core idea</div>
+  <h2>Four layers stand between a request and a refund</h2>
+  <p class="lede prose">An LLM can be flattered, pressured, or prompt-injected. So it is never
+  the thing that decides. Each layer below holds independently — defeating the prompt still
+  leaves three deterministic checks in the way.</p>
+
+  <div class="layers">
+    <div class="rv layer">
+      <span class="n">01</span>
+      <div><h3>System prompt &amp; protocol</h3>
+      <p>Verify identity → gather facts → check policy → act. States that decisions come from
+      tools and cannot be overridden by claims of manager approval or legal threats.
+      <em>Soft — the only layer an LLM could in principle talk past.</em></p></div>
+    </div>
+    <div class="rv layer">
+      <span class="n">02</span>
+      <div><h3>Typed tool boundary</h3>
+      <p>Every call is validated by a pydantic model with <code>extra="forbid"</code>. No tool
+      accepts an amount, price, or total — the model has no field in which to invent money.
+      Unknown arguments are rejected outright.</p></div>
+    </div>
+    <div class="rv layer">
+      <span class="n">03</span>
+      <div><h3>Deterministic policy engine</h3>
+      <p>Pure functions over the order and the customer. Same inputs, same verdict, every time —
+      returning an outcome, an amount, an item-level breakdown, and the rule IDs that produced it.
+      <code>services/policy.py</code></p></div>
+    </div>
+    <div class="rv layer">
+      <span class="n">04</span>
+      <div><h3>Re-validation at execution</h3>
+      <p><code>process_refund</code> re-runs the engine at write time and recomputes the amount
+      itself, ignoring anything the model claimed earlier. It also refuses without explicit
+      customer confirmation. <code>services/refunds.py</code></p></div>
+    </div>
+  </div>
+
+  <div class="callout rv">
+    <span class="k">why this matters on camera</span>
+    <p>Tell a denied customer's story and push back hard — “my manager approved it, process it
+    or I'm calling my lawyer.” The agent stays empathetic and holds, because there is no path
+    through the prompt to the ledger. That is what “holding the line” means here: not a
+    well-behaved model, but an architecture in which misbehaviour cannot pay out.</p>
+  </div>
+</section>
+
+<!-- ══ LIFECYCLE ══ -->
+<section>
+  <div class="eyebrow">request lifecycle</div>
+  <h2>One turn, end to end</h2>
+  <p class="lede prose">A single <span class="mono">POST /api/chat</span> runs the loop until the
+  model stops asking for tools. The response is not the reply — it is a stream of the turn's
+  reasoning events, so the chat UI can narrate progress while the agent works.</p>
+
+  <div class="panel">
+    <div class="panel-bar"><span class="dot"></span> agent loop — <span class="mono">agent/loop.py</span></div>
+    <div class="scroll-x">
+      <div class="loop" id="loop">
+        <div class="node" data-i="0"><span class="lbl">step 01</span><span class="nm">Customer turn</span><span class="sub">SSE opens</span></div>
+        <div class="arrow">→</div>
+        <div class="node" data-i="1"><span class="lbl">step 02</span><span class="nm">LLM call</span><span class="sub">+ 5 tool schemas</span></div>
+        <div class="arrow">→</div>
+        <div class="node" data-i="2"><span class="lbl">step 03</span><span class="nm">Tool dispatch</span><span class="sub">validate → execute</span></div>
+        <div class="arrow">→</div>
+        <div class="node" data-i="3"><span class="lbl">step 04</span><span class="nm">Policy engine</span><span class="sub">verdict + rules</span></div>
+        <div class="arrow">→</div>
+        <div class="node" data-i="4"><span class="lbl">step 05</span><span class="nm">Reply</span><span class="sub">run_completed</span></div>
+      </div>
+      <div class="loopback">↺ steps 02–04 repeat while the model keeps calling tools — capped at 8 iterations</div>
+    </div>
+  </div>
+
+  <div class="grid g3">
+    <div class="card rv"><span class="k">chat stream</span><h3>Per-turn events</h3>
+      <p>The chat endpoint subscribes to the bus, filters to this session, and closes the stream
+      on <span class="mono">run_completed</span> — so a dead turn can never hang the UI.</p></div>
+    <div class="card rv"><span class="k">admin stream</span><h3>Everything, with replay</h3>
+      <p><span class="mono">/api/admin/stream</span> replays the last 300 events on connect, then
+      tails live. The client dedupes by event id, so a reconnect loses nothing.</p></div>
+    <div class="card rv"><span class="k">guardrail</span><h3>Bounded work</h3>
+      <p>Eight tool iterations maximum. On exhaustion the agent hands off to a human rather than
+      looping — surfaced as a <span class="mono">run_error</span>.</p></div>
+  </div>
+</section>
+
+<!-- ══ SYSTEM FLOWCHART ══ -->
+<section>
+  <div class="eyebrow">system map</div>
+  <h2>Follow one refund through the whole app</h2>
+  <p class="lede prose">Every box below is a real module. Press play to walk a single request
+  from the customer's keystroke to the ledger write and the spoken reply — the same path the
+  reasoning log records.</p>
+
+  <div class="panel">
+    <div class="panel-bar"><span class="dot"></span> end-to-end request flow</div>
+    <div class="scroll-x flow-wrap">
+      <svg id="flow" viewBox="0 0 1080 690" role="img"
+           aria-label="Architecture flowchart: browser, FastAPI, agent loop, services, data and external APIs">
+        <defs>
+          <marker id="ah" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6"
+                  orient="auto-start-reverse">
+            <path d="M0,0 L10,5 L0,10 z" fill="currentColor"/>
+          </marker>
+        </defs>
+        <g id="bands"></g>
+        <g id="links"></g>
+        <g id="nodes"></g>
+        <circle id="packet" r="6"/>
+      </svg>
+    </div>
+    <div class="flow-ctl">
+      <button class="replay" id="flowPlay">▸ play request</button>
+      <span class="step" id="flowStep">Idle — press play to trace a refund end to end.</span>
+    </div>
+  </div>
+</section>
+
+<!-- ══ TECH STACK ══ -->
+<section>
+  <div class="eyebrow">tech stack</div>
+  <h2>What it is built on, and why</h2>
+  <p class="lede prose">Deliberately small. No agent framework, no bundler, no database — each
+  omission bought something specific: an inspectable loop, a one-command run, and demo state
+  that resets cleanly between takes.</p>
+
+  <div class="stack">
+    <div class="tcol rv">
+      <h3>Backend</h3>
+      <ul>
+        <li><div><b>Python</b><span class="why">Type hints throughout</span></div><span class="v">3.12</span></li>
+        <li><div><b>FastAPI</b><span class="why">Async routes + SSE streaming</span></div><span class="v">0.141</span></li>
+        <li><div><b>Uvicorn</b><span class="why">ASGI server</span></div><span class="v">0.52</span></li>
+        <li><div><b>pydantic</b><span class="why">Tool-argument validation, domain models</span></div><span class="v">2.13</span></li>
+        <li><div><b>pydantic-settings</b><span class="why">Typed config from .env</span></div><span class="v">2.14</span></li>
+        <li><div><b>httpx</b><span class="why">Async client for the TTS proxy</span></div><span class="v">0.28</span></li>
+      </ul>
+    </div>
+
+    <div class="tcol rv">
+      <h3>Agent &amp; models</h3>
+      <ul>
+        <li><div><b>Raw function calling</b><span class="why">No LangGraph or CrewAI — the loop is ~225 readable lines</span></div></li>
+        <li><div><b>anthropic</b><span class="why">Claude · prompt caching · effort</span></div><span class="v">0.120</span></li>
+        <li><div><b>openai</b><span class="why">Also drives DeepSeek, Groq, Gemini and Ollama via base URL</span></div><span class="v">2.53</span></li>
+        <li><div><b>deepseek-v4-flash</b><span class="why">Current model · 1M context · ~97% prompt-cache hit</span></div></li>
+        <li><div><b>Mock provider</b><span class="why">Scripted, offline — powers the API tests</span></div></li>
+      </ul>
+    </div>
+
+    <div class="tcol rv">
+      <h3>Frontend</h3>
+      <ul>
+        <li><div><b>Vanilla ES modules</b><span class="why">Zero build step — nothing to break mid-demo</span></div></li>
+        <li><div><b>Server-Sent Events</b><span class="why">Live reasoning log and per-turn status</span></div></li>
+        <li><div><b>CSS custom properties</b><span class="why">Design tokens, no framework</span></div></li>
+        <li><div><b>Web Speech API</b><span class="why">Speech-to-text, browser-native, no key</span></div></li>
+        <li><div><b>ElevenLabs</b><span class="why">Spoken replies, proxied server-side</span></div></li>
+      </ul>
+    </div>
+
+    <div class="tcol rv">
+      <h3>Data</h3>
+      <ul>
+        <li><div><b>JSON seed CRM</b><span class="why">15 profiles with day-offset dates that never expire</span></div></li>
+        <li><div><b>Markdown policy</b><span class="why">Loaded into the system prompt verbatim</span></div></li>
+        <li><div><b>In-memory stores</b><span class="why">Ledger, tickets, sessions, events — reset per run</span></div></li>
+      </ul>
+    </div>
+
+    <div class="tcol rv">
+      <h3>Testing</h3>
+      <ul>
+        <li><div><b>pytest</b><span class="why">105 tests, no async plugin needed</span></div><span class="v">9.1</span></li>
+        <li><div><b>Scripted fake LLM</b><span class="why">Deterministic retry and failure paths</span></div></li>
+        <li><div><b>TestClient</b><span class="why">HTTP + SSE end to end</span></div></li>
+      </ul>
+    </div>
+
+    <div class="tcol rv">
+      <h3>Tooling</h3>
+      <ul>
+        <li><div><b>Makefile</b><span class="why">setup · dev · test</span></div></li>
+        <li><div><b>.env config</b><span class="why">Swap provider, model, voice without code changes</span></div></li>
+        <li><div><b>Mermaid docs</b><span class="why">Diagrams that render on GitHub</span></div></li>
+      </ul>
+    </div>
+  </div>
+</section>
+
+<!-- ══ POLICY ══ -->
+<section>
+  <div class="eyebrow">policy engine</div>
+  <h2>Twelve rules, implemented one-to-one</h2>
+  <p class="lede prose">The policy document is the source of truth and the engine mirrors it
+  rule for rule. Every decision carries the IDs it applied, so the agent can explain itself and
+  the dashboard can audit it. R1–R11 are computed; R12 is enforced procedurally by the tool layer.</p>
+
+  <div class="rules">
+    <div class="rule rv" data-k="ok"><div class="id">R1</div><div class="ttl">Return window</div><div class="dsc">Change of mind up to 30 days after delivery — day 30 inclusive.</div></div>
+    <div class="rule rv" data-k="stop"><div class="id">R2</div><div class="ttl">Delivery required</div><div class="dsc">Shipped but undelivered cannot be refunded; wait or refuse delivery.</div></div>
+    <div class="rule rv" data-k="ok"><div class="id">R3</div><div class="ttl">Damaged or wrong</div><div class="dsc">Report within 7 days → full refund <em>including</em> shipping.</div></div>
+    <div class="rule rv" data-k="stop"><div class="id">R4</div><div class="ttl">Non-returnable</div><div class="dsc">Final-sale and perishable items are excluded from change-of-mind returns.</div></div>
+    <div class="rule rv" data-k="stop"><div class="id">R5</div><div class="ttl">Gift cards</div><div class="dsc">Never refundable and never exchangeable for cash.</div></div>
+    <div class="rule rv" data-k="warn"><div class="id">R6</div><div class="ttl">Opened electronics</div><div class="dsc">15% restocking fee if opened; used electronics are not returnable.</div></div>
+    <div class="rule rv" data-k="stop"><div class="id">R7</div><div class="ttl">One per line</div><div class="dsc">An already-refunded order line cannot be refunded twice.</div></div>
+    <div class="rule rv" data-k="warn"><div class="id">R8</div><div class="ttl">Auto-approval cap</div><div class="dsc">Above $400.00 requires human review. Exactly $400.00 still auto-approves.</div></div>
+    <div class="rule rv" data-k="warn"><div class="id">R9</div><div class="ttl">Flagged accounts</div><div class="dsc">Abuse-flagged accounts need review for any amount. The flag is never shown to the model.</div></div>
+    <div class="rule rv" data-k="ok"><div class="id">R10</div><div class="ttl">Pre-ship cancel</div><div class="dsc">Unshipped orders cancel for a full refund including shipping.</div></div>
+    <div class="rule rv" data-k="warn"><div class="id">R11</div><div class="ttl">Not received</div><div class="dsc">Delivered-but-missing needs a carrier investigation. Never auto-refunded.</div></div>
+    <div class="rule rv" data-k="ok"><div class="id">R12</div><div class="ttl">Verify &amp; consent</div><div class="dsc">Identity check, policy check, then explicit confirmation before any write.</div></div>
+  </div>
+
+  <div class="callout rv">
+    <span class="k">an audit caught this</span>
+    <p>A duplicate SKU in one request — <span class="mono">["GLV-030","GLV-030"]</span> — counted
+    the line twice and would have paid $50 instead of $25. Re-validation did not help, because it
+    recomputed from the same arguments. The engine now deduplicates, and a test holds the line.
+    Boundary conditions were checked in the other direction too: day 30, day 7 and exactly
+    $400.00 all resolve the generous way, matching the policy's wording.</p>
+  </div>
+</section>
+
+<!-- ══ TOOLS ══ -->
+<section>
+  <div class="eyebrow">tool orchestration</div>
+  <h2>Five tools, and none of them take a number</h2>
+  <p class="lede prose">The model chooses which to call and with what arguments; pydantic
+  validates before anything executes. Bad arguments come back as recoverable errors the model
+  can correct, rather than exceptions that kill the turn.</p>
+
+  <div class="panel scroll-x">
+    <table>
+      <thead><tr><th>Tool</th><th>Purpose</th><th>Guard</th></tr></thead>
+      <tbody>
+        <tr><td><b class="mono">lookup_customer</b></td><td>Verify identity by email; return the profile and every order.</td><td>Internal flags and demo notes stripped from the model's view.</td></tr>
+        <tr><td><b class="mono">get_order</b></td><td>Fetch one order for a verified customer.</td><td>Fails if the order belongs to another account.</td></tr>
+        <tr><td><b class="mono">check_refund_eligibility</b></td><td>Run the engine. Returns outcome, amount, item breakdown, rule IDs.</td><td>Must be called before any promise is made.</td></tr>
+        <tr><td><b class="mono">process_refund</b></td><td>Execute an approved refund and write the ledger.</td><td>Re-validates; recomputes the amount; requires <span class="mono">customer_confirmed</span>.</td></tr>
+        <tr><td><b class="mono">escalate_to_human</b></td><td>Open a ticket with a 1-business-day SLA.</td><td>Reserved for genuine review outcomes — not a pressure valve for denials.</td></tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<!-- ══ PROVIDERS + VOICE ══ -->
+<section>
+  <div class="eyebrow">swappable edges</div>
+  <h2>The model and the voice are both replaceable</h2>
+  <p class="lede prose">The loop speaks one small normalized message format. Adapters translate
+  it at the edge, so switching providers is an environment variable — not a refactor.</p>
+
+  <div class="grid g2">
+    <div class="card rv"><span class="k">llm layer</span><h3>Provider-agnostic</h3>
+      <p><b>Anthropic</b> (Claude, prompt caching, effort) · <b>OpenAI</b> — which doubles as the
+      client for any compatible endpoint: DeepSeek, Groq, Gemini, or a local Ollama · <b>Mock</b>, a scripted
+      offline provider for tests. Stop reasons are normalized to four values; SDK auto-retry is
+      disabled on purpose so every retry appears in the log. Vendor quirks are absorbed here:
+      tool calls are replayed verbatim so opaque fields survive the round trip, schemas are
+      emitted in the subset every provider accepts, and retry hints are read from the header
+      <em>or</em> the error body.</p></div>
+    <div class="card rv"><span class="k">voice pipeline</span><h3>A graceful ladder</h3>
+      <p><b>Speech-to-text</b> is browser-native Web Speech — no key, audio never leaves the
+      machine. <b>Text-to-speech</b> is ElevenLabs, proxied through the backend so the key never
+      reaches the browser. Any failure — no key, bad voice, quota gone, blocked autoplay — falls
+      back to browser speech. The demo cannot lose its voice.</p></div>
+  </div>
+</section>
+
+<!-- ══ FAILURE ══ -->
+<section>
+  <div class="eyebrow">failure handling</div>
+  <h2>Every failure has a visible path</h2>
+  <p class="lede prose">Retries live in the loop rather than inside the SDK, precisely so they
+  show up in the reasoning log. Whatever goes wrong, the turn still terminates with
+  <span class="mono">run_completed</span>.</p>
+
+  <div class="panel scroll-x">
+    <table>
+      <thead><tr><th>Failure</th><th>Response</th><th>Visible as</th></tr></thead>
+      <tbody>
+        <tr><td><b>Rate limit / 5xx / network</b></td><td>Retry ×3, exponential backoff, honouring <span class="mono">Retry-After</span></td><td><span class="mono">llm_retry</span> → graceful apology if exhausted</td></tr>
+        <tr><td><b>Transient tool failure</b></td><td>One retry after 0.4s</td><td><span class="mono">tool_retry</span></td></tr>
+        <tr><td><b>Bad tool arguments</b></td><td>Validation error returned to the model to self-correct</td><td><span class="mono">tool_error</span></td></tr>
+        <tr><td><b>Ineligible refund attempt</b></td><td>Blocked by re-validation, with rule citations</td><td><span class="mono">policy_decision</span> + <span class="mono">tool_error</span></td></tr>
+        <tr><td><b>Runaway tool loop</b></td><td>Stop at 8 iterations, hand off to a human</td><td><span class="mono">run_error</span> · max_iterations</td></tr>
+        <tr><td><b>Model safety refusal</b></td><td>Canned safe reply</td><td><span class="mono">run_error</span> · refusal</td></tr>
+        <tr><td><b>Unexpected exception</b></td><td>Apology to the customer; the server stays up</td><td><span class="mono">run_error</span> · unexpected</td></tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<!-- ══ CODEBASE ══ -->
+<section>
+  <div class="eyebrow">the codebase</div>
+  <h2>Where everything lives</h2>
+  <p class="lede prose">Python 3.12, FastAPI, pydantic v2 on the back end; dependency-free ES
+  modules on the front, served by the same process — one command runs the whole app, and there
+  is no build step to break during a demo. Bars are relative line counts.</p>
+
+  <div class="panel">
+    <div class="panel-bar"><span class="dot"></span> repository map</div>
+    <div class="scroll-x"><div class="tree" id="tree"></div></div>
+  </div>
+</section>
+
+<!-- ══ EVENTS ══ -->
+<section>
+  <div class="eyebrow">observability</div>
+  <h2>Sixteen typed events are the product's memory</h2>
+  <p class="lede prose">The event bus is the single source of truth for the dashboard, the chat
+  status line, and the statistics. It is also the substrate an offline eval harness would replay.
+  Fifteen are durable; <span class="mono">response_delta</span> is transient — token fragments are
+  fanned out to the live chat and deliberately never written to the history, so a streamed reply
+  cannot evict the reasoning trace it sits next to.</p>
+
+  <div class="grid g4" id="events"></div>
+
+  <div class="callout rv">
+    <span class="k">design consequence</span>
+    <p>Because state changes are events rather than log lines, the admin view needed no separate
+    instrumentation — and the same stream drives live status in the chat UI, the stat tiles, and
+    the filterable trace. Frontend badge maps are checked against the backend constants, so the
+    two cannot silently drift.</p>
+  </div>
+</section>
+
+<!-- ══ VERIFICATION ══ -->
+<section>
+  <div class="eyebrow">verification</div>
+  <h2>What was actually tested</h2>
+
+  <div class="grid g4">
+    <div class="card rv"><span class="k">unit + integration</span><h3>105 tests</h3>
+      <p>Every rule and its boundaries, ledger re-validation, loop retry and failure paths via a
+      scripted fake LLM, provider config, TTS proxy, and the HTTP API end to end.</p></div>
+    <div class="card rv"><span class="k">live sweep</span><h3>15 / 15 personas</h3>
+      <p>All fifteen CRM profiles driven through the real agent, asserting outcome, cited rules,
+      exact amount, and side effects — including that no ticket is created where none is due.
+      Re-run against four different providers; each disagreement found a real bug.</p></div>
+    <div class="card rv"><span class="k">adversarial</span><h3>Hostile inputs</h3>
+      <p>Cross-account access, schema tampering, duplicate SKUs, unknown tools, malformed
+      arguments, and XSS through both the chat and the admin log.</p></div>
+    <div class="card rv"><span class="k">runtime</span><h3>Concurrency &amp; loss</h3>
+      <p>Two simultaneous sessions with no event cross-talk, mid-turn client disconnect, and SSE
+      replay on reconnect.</p></div>
+  </div>
+</section>
+
+<footer>
+  <p><span class="mono">Meridian Assist</span> — AI customer support agent.
+  FastAPI · pydantic v2 · raw function calling · SSE · Web Speech + ElevenLabs.</p>
+  <p class="note">Architecture reference generated from the repository. Line counts and rule,
+  tool, event and endpoint totals are read from the source.</p>
+</footer>
+
+</div>
+
+<script>
+const reduced = matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+/* ── scroll progress ── */
+const rail = document.getElementById("rail");
+addEventListener("scroll", () => {
+  const h = document.documentElement.scrollHeight - innerHeight;
+  rail.style.width = (h > 0 ? (scrollY / h) * 100 : 0) + "%";
+}, {passive:true});
+
+/* ── reveal on scroll ── */
+const io = new IntersectionObserver((entries) => {
+  entries.forEach((e, i) => {
+    if (e.isIntersecting) {
+      setTimeout(() => e.target.classList.add("on"), reduced ? 0 : (i % 6) * 55);
+      io.unobserve(e.target);
+    }
+  });
+}, {threshold:0.12, rootMargin:"0px 0px -40px 0px"});
+document.querySelectorAll(".rv").forEach(el => io.observe(el));
+
+/* ── hero: replay a real reasoning trace ── */
+const TRACE = [
+  ["session",  "t-policy", "Session <b>sess-74c1936a</b> started · deepseek-v4-flash", "", 0],
+  ["user",     "t-policy", "Customer: “returning my running shoes — changed my mind, unworn. sofia.ramirez@example.com, ORD-72001”", "", 380],
+  ["llm call", "t-llm",    "Iteration 1 · attempt 1 · 5 tool schemas offered", "", 520],
+  ["tool call","t-tool",   "<b>lookup_customer</b> { email: \"sofia.ramirez@example.com\" }", "", 640],
+  ["tool result","t-tool", "1 customer · 1 order · delivered 12 days ago", "", 300],
+  ["llm call", "t-llm",    "Iteration 2 · model has the facts", "", 460],
+  ["tool call","t-tool",   "<b>check_refund_eligibility</b> { reason: \"changed_mind\" }", "", 560],
+  ["policy",   "t-policy", "Engine verdict · <b>R1</b> · within the 30-day window", "APPROVED $89.99", 420],
+  ["reply",    "t-policy", "“…approved for a refund of $89.99. Shall I process it?”", "", 500],
+  ["user",     "t-policy", "Customer: “Yes please, process it.”", "", 620],
+  ["tool call","t-tool",   "<b>process_refund</b> { customer_confirmed: true }", "", 520],
+  ["policy",   "t-policy", "Re-validated at execution · amount recomputed by the engine", "APPROVED $89.99", 380],
+  ["refund",   "t-ok",     "Ledger written · <b>RF-7001</b> → Visa ending 4242", "$89.99", 340],
+  ["done",     "t-policy", "Turn finished · status ok · 2 iterations", "", 300]
+];
+
+const traceEl = document.getElementById("trace");
+let timers = [];
+
+function renderTrace() {
+  timers.forEach(clearTimeout); timers = [];
+  traceEl.innerHTML = "";
+  let clock = 0;
+  const base = new Date();
+  TRACE.forEach((ev, i) => {
+    const [tag, cls, text, verdict, delay] = ev;
+    clock += delay;
+    const row = document.createElement("div");
+    row.className = "row";
+    const stamp = new Date(base.getTime() + clock);
+    const hh = String(stamp.getHours()).padStart(2,"0");
+    const mm = String(stamp.getMinutes()).padStart(2,"0");
+    const ss = String(stamp.getSeconds()).padStart(2,"0");
+    const vClass = verdict.startsWith("APPROVED") ? "v-ok" : verdict ? "v-warn" : "";
+    row.innerHTML =
+      `<span class="t">${hh}:${mm}:${ss}</span>` +
+      `<span class="tag ${cls}">${tag}</span>` +
+      `<span class="txt">${text}</span>` +
+      (verdict ? `<span class="verdict ${vClass}">${verdict}</span>` : "");
+    traceEl.appendChild(row);
+    if (reduced) { row.classList.add("in"); return; }
+    timers.push(setTimeout(() => row.classList.add("in"), clock * 0.42 + 120));
+  });
+}
+renderTrace();
+document.getElementById("replay").addEventListener("click", renderTrace);
+
+/* ── loop diagram: a pulse travels the cycle ── */
+const nodes = [...document.querySelectorAll("#loop .node")];
+if (!reduced && nodes.length) {
+  let step = 0;
+  const loopIO = new IntersectionObserver((entries) => {
+    entries.forEach(e => {
+      if (!e.isIntersecting) return;
+      setInterval(() => {
+        nodes.forEach(n => n.classList.remove("hot"));
+        nodes[step % nodes.length].classList.add("hot");
+        step++;
+      }, 900);
+      loopIO.disconnect();
+    });
+  }, {threshold:0.4});
+  loopIO.observe(document.getElementById("loop"));
+}
+
+/* ── system flowchart ── */
+const NODES = {
+  chat:   [ 40,  70, 190, 54, "Chat UI",        "chat.js",            ""],
+  voice:  [ 40, 142, 190, 54, "Voice",          "mic · speaker",      ""],
+  admin:  [ 40, 560, 190, 54, "Admin Dashboard","admin.js",           ""],
+
+  apiChat:[280,  70, 190, 54, "POST /api/chat", "SSE per turn",       ""],
+  apiTts: [280, 142, 190, 54, "POST /api/tts",  "key stays server",   ""],
+  apiAdm: [280, 560, 190, 54, "/admin/stream",  "SSE + replay",       ""],
+
+  loop:   [280, 236, 190, 62, "AgentRunner",    "loop.py · retries",  ""],
+  tools:  [280, 330, 190, 54, "Tool dispatch",  "pydantic validate",  ""],
+
+  policy: [530, 330, 190, 54, "Policy engine",  "R1–R11 · pure",      ""],
+  crm:    [530, 236, 190, 54, "Mock CRM",       "15 profiles",        ""],
+  ledger: [530, 414, 190, 54, "Refund ledger",  "re-validates",       "" ],
+  esc:    [530, 498, 190, 54, "Escalations",    "human review",       ""],
+
+  data:   [780, 330, 190, 54, "Seed data",      "customers · policy", "data"],
+  bus:    [530,  70, 190, 54, "Event bus",      "15 typed events",    ""],
+
+  llm:    [780, 236, 190, 54, "LLM provider",   "DeepSeek v4-flash",  "ext"],
+  eleven: [780, 142, 190, 54, "ElevenLabs",     "text to speech",     "ext"]
+};
+
+const BANDS = [
+  [ 24,  44, 222, 592, "browser"],
+  [264,  44, 222, 592, "fastapi"],
+  [514,  44, 222, 508, "services"],
+  [764, 118, 222, 292, "external / data"]
+];
+
+/* from, to, side: h = horizontal, v = vertical, evt = dashed event link */
+const LINKS = [
+  ["chat","apiChat","h"], ["apiChat","loop","v"], ["loop","tools","v"],
+  ["loop","llm","h"], ["tools","crm","h"], ["tools","policy","h"],
+  ["tools","ledger","h"], ["tools","esc","h"], ["policy","data","h"],
+  ["crm","data","h"], ["ledger","policy","v"],
+  ["loop","bus","h","evt"], ["policy","bus","v","evt"], ["ledger","bus","v","evt"],
+  ["bus","apiAdm","v","evt"], ["apiAdm","admin","h"], ["apiChat","chat","h"],
+  ["voice","apiTts","h"], ["apiTts","eleven","h"]
+];
+
+const svg = document.getElementById("flow");
+const gNodes = document.getElementById("nodes");
+const gLinks = document.getElementById("links");
+const gBands = document.getElementById("bands");
+const packet = document.getElementById("packet");
+const SVGNS = "http://www.w3.org/2000/svg";
+const el = (t, a) => { const n = document.createElementNS(SVGNS, t);
+  for (const k in a) n.setAttribute(k, a[k]); return n; };
+
+BANDS.forEach(([x,y,w,h,label]) => {
+  gBands.appendChild(el("rect",{x,y,width:w,height:h,rx:14,class:"band"}));
+  const t = el("text",{x:x+12,y:y+18,class:"bandlbl"}); t.textContent = label;
+  gBands.appendChild(t);
+});
+
+const nodeEls = {};
+for (const id in NODES) {
+  const [x,y,w,h,label,sub,kind] = NODES[id];
+  const g = el("g",{class:"fnode" + (kind ? " " + kind : ""), id:"n-"+id});
+  g.appendChild(el("rect",{x,y,width:w,height:h,rx:10}));
+  const t1 = el("text",{x:x+14,y:y+(sub?24:31),class:"nlabel"}); t1.textContent = label;
+  g.appendChild(t1);
+  if (sub){ const t2 = el("text",{x:x+14,y:y+40,class:"nsub"}); t2.textContent = sub; g.appendChild(t2); }
+  gNodes.appendChild(g);
+  nodeEls[id] = g;
+}
+
+const box = id => { const [x,y,w,h] = NODES[id]; return {x,y,w,h,cx:x+w/2,cy:y+h/2}; };
+const linkEls = {};
+
+LINKS.forEach(([from,to,mode,evt]) => {
+  const a = box(from), b = box(to);
+  let d;
+  if (mode === "h") {
+    const x1 = a.cx < b.cx ? a.x + a.w : a.x;
+    const x2 = a.cx < b.cx ? b.x : b.x + b.w;
+    const mid = (x1 + x2) / 2;
+    d = `M${x1},${a.cy} C${mid},${a.cy} ${mid},${b.cy} ${x2},${b.cy}`;
+  } else {
+    const y1 = a.cy < b.cy ? a.y + a.h : a.y;
+    const y2 = a.cy < b.cy ? b.y : b.y + b.h;
+    const mid = (y1 + y2) / 2;
+    d = `M${a.cx},${y1} C${a.cx},${mid} ${b.cx},${mid} ${b.cx},${y2}`;
+  }
+  const p = el("path",{d,class:"link" + (evt ? " evt" : ""),"marker-end":"url(#ah)"});
+  gLinks.appendChild(p);
+  linkEls[from + ">" + to] = p;
+});
+
+/* the narrated sequence */
+const STORY = [
+  ["chat",   null,              "Customer types: “refund my running shoes — ORD-72001”"],
+  ["apiChat","chat>apiChat",    "POST /api/chat opens an SSE stream for this turn"],
+  ["loop",   "apiChat>loop",    "AgentRunner starts · system prompt + 5 tool schemas"],
+  ["llm",    "loop>llm",        "LLM call — the model decides which tool to use"],
+  ["tools",  "loop>tools",      "Tool dispatch validates the arguments with pydantic"],
+  ["crm",    "tools>crm",       "lookup_customer — identity verified against the CRM"],
+  ["data",   "crm>data",        "Seed data: 15 profiles, dates hydrated from day offsets"],
+  ["policy", "tools>policy",    "check_refund_eligibility runs the deterministic engine"],
+  ["bus",    "policy>bus",      "policy_decision · APPROVED $89.99 · rule R1"],
+  ["ledger", "tools>ledger",    "process_refund re-validates, then writes RF-7001"],
+  ["bus",    "ledger>bus",      "refund_processed event emitted"],
+  ["apiAdm", "bus>apiAdm",      "Event bus fans out over SSE"],
+  ["admin",  "apiAdm>admin",    "Admin dashboard updates live — no polling"],
+  ["chat",   "apiChat>chat",    "Reply streams back to the customer"],
+  ["apiTts", "voice>apiTts",    "Speaker on → POST /api/tts (key never leaves the server)"],
+  ["eleven", "apiTts>eleven",   "ElevenLabs returns audio · browser speech is the fallback"]
+];
+
+const stepEl = document.getElementById("flowStep");
+let flowTimers = [], rafId = null;
+
+function clearFlow() {
+  flowTimers.forEach(clearTimeout); flowTimers = [];
+  if (rafId) cancelAnimationFrame(rafId);
+  Object.values(nodeEls).forEach(n => n.classList.remove("on","done"));
+  Object.values(linkEls).forEach(l => l.classList.remove("lit"));
+  packet.style.opacity = 0;
+}
+
+function travel(pathKey, done) {
+  const path = linkEls[pathKey];
+  if (!path) { done(); return; }
+  path.classList.add("lit");
+  const len = path.getTotalLength();
+  const dur = 620;
+  let t0 = null;
+  packet.style.opacity = 1;
+  function frame(ts) {
+    if (!t0) t0 = ts;
+    const k = Math.min((ts - t0) / dur, 1);
+    const pt = path.getPointAtLength(len * k);
+    packet.setAttribute("cx", pt.x);
+    packet.setAttribute("cy", pt.y);
+    if (k < 1) rafId = requestAnimationFrame(frame);
+    else { packet.style.opacity = 0; done(); }
+  }
+  rafId = requestAnimationFrame(frame);
+}
+
+function playFlow() {
+  clearFlow();
+  let i = 0;
+  const next = () => {
+    if (i >= STORY.length) {
+      stepEl.innerHTML = "<b>Complete</b> — refund written, dashboard updated, reply spoken.";
+      return;
+    }
+    const [node, link, caption] = STORY[i];
+    stepEl.innerHTML = `<b>${String(i + 1).padStart(2,"0")}</b> &nbsp;${caption}`;
+    Object.values(nodeEls).forEach(n => n.classList.remove("on"));
+    const advance = () => {
+      nodeEls[node].classList.add("on","done");
+      i++;
+      flowTimers.push(setTimeout(next, reduced ? 0 : 520));
+    };
+    if (link && !reduced) travel(link, advance); else advance();
+  };
+  next();
+}
+
+document.getElementById("flowPlay").addEventListener("click", playFlow);
+
+const flowIO = new IntersectionObserver((entries) => {
+  entries.forEach(e => { if (e.isIntersecting && !reduced) { playFlow(); flowIO.disconnect(); } });
+}, {threshold:0.35});
+flowIO.observe(svg);
+
+/* ── file tree with proportional line counts ── */
+const TREE = [
+  ["backend/app/", null, "FastAPI application", 1],
+  ["  agent/tools.py", 419, "5 tools · pydantic validation · dispatch + retry", 0],
+  ["  agent/loop.py", 225, "the agent loop · retries · guardrails · events", 0],
+  ["  agent/prompts.py", 84, "system prompt: protocol, hard rules, policy text", 0],
+  ["  services/policy.py", 330, "deterministic engine · R1–R11", 0],
+  ["  services/tts.py", 104, "ElevenLabs client · quota guard", 0],
+  ["  services/crm.py", 92, "mock CRM · day-offset date hydration", 0],
+  ["  services/refunds.py", 87, "ledger · re-validation · confirmation gate", 0],
+  ["  services/sessions.py", 44, "in-memory chat sessions", 0],
+  ["  services/escalations.py", 34, "human-review tickets", 0],
+  ["  llm/openai_provider.py", 179, "OpenAI + any compatible endpoint", 0],
+  ["  llm/anthropic_provider.py", 145, "Claude · prompt caching · effort", 0],
+  ["  llm/mock_provider.py", 99, "scripted offline provider", 0],
+  ["  llm/base.py", 62, "normalized message format + interface", 0],
+  ["  api/admin.py", 153, "dashboard: stream, stats, ledgers, CRM, policy", 0],
+  ["  api/chat.py", 62, "POST /api/chat · per-turn SSE", 0],
+  ["  api/voice.py", 48, "TTS proxy · voice discovery", 0],
+  ["  models.py", 125, "domain models · PolicyDecision", 0],
+  ["  events.py", 87, "typed events + pub/sub bus", 0],
+  ["  main.py", 84, "wiring · static frontend · no-store", 0],
+  ["  config.py", 57, "settings from .env", 0],
+  ["  data/customers.json", 376, "15 CRM profiles, one per scenario", 0],
+  ["  data/refund_policy.md", 58, "the policy — single source of truth", 0],
+  ["frontend/", null, "zero-build ES modules", 1],
+  ["  js/admin.js", 254, "dashboard · SSE · filters · ledgers", 0],
+  ["  js/chat.js", 245, "chat · live status · voice controls", 0],
+  ["  js/voice.js", 124, "Web Speech STT · ElevenLabs TTS ladder", 0],
+  ["  js/format.js", 81, "escaping · markdown-lite · formatting", 0],
+  ["  js/api.js", 57, "fetch + SSE clients", 0],
+  ["  js/app.js", 49, "shell · view modes · provider pill", 0],
+  ["  index.html", 159, "chat + dashboard + split view", 0],
+  ["  styles/", 487, "base · chat · admin", 0],
+  ["backend/tests/", 1180, "105 tests across 8 files", 1]
+];
+
+const treeEl = document.getElementById("tree");
+const maxLoc = Math.max(...TREE.map(t => t[1] || 0));
+TREE.forEach(([name, loc, desc, isDir]) => {
+  const row = document.createElement("div");
+  row.className = "f" + (isDir ? " dir" : "");
+  const label = name.startsWith("  ")
+    ? `  <i>${name.trim().split("/").slice(0,-1).join("/")}${name.trim().includes("/") ? "/" : ""}</i><b>${name.trim().split("/").pop()}</b>`
+    : `<b>${name}</b>`;
+  row.innerHTML =
+    `<span class="nm">${label}  <i>${desc}</i></span>` +
+    `<span class="loc">${loc ? loc.toLocaleString() : ""}</span>` +
+    `<span class="bar"><i data-w="${loc ? (loc / maxLoc) * 100 : 0}"></i></span>`;
+  treeEl.appendChild(row);
+});
+
+const barIO = new IntersectionObserver((entries) => {
+  entries.forEach(e => {
+    if (!e.isIntersecting) return;
+    treeEl.querySelectorAll(".bar i").forEach((b, i) => {
+      setTimeout(() => { b.style.width = b.dataset.w + "%"; }, reduced ? 0 : i * 26);
+    });
+    barIO.disconnect();
+  });
+}, {threshold:0.15});
+barIO.observe(treeEl);
+
+/* ── event type grid ── */
+const EVENTS = [
+  ["session_started","t-policy"], ["user_message","t-policy"],
+  ["llm_request","t-llm"], ["llm_retry","t-warn"],
+  ["response_delta","t-llm"], ["assistant_thinking","t-llm"],
+  ["tool_call","t-tool"],
+  ["tool_result","t-tool"], ["tool_retry","t-warn"],
+  ["tool_error","t-stop"], ["policy_decision","t-policy"],
+  ["refund_processed","t-ok"], ["escalation_created","t-warn"],
+  ["agent_response","t-policy"], ["run_error","t-stop"],
+  ["run_completed","t-policy"]
+];
+const evEl = document.getElementById("events");
+EVENTS.forEach(([name, cls]) => {
+  const d = document.createElement("div");
+  d.className = "card rv";
+  d.style.padding = "13px 14px";
+  d.innerHTML = `<span class="tag ${cls}" style="min-width:0;display:inline-block">${cls.replace("t-","")}</span>
+    <div class="mono" style="margin-top:8px;font-size:12.5px;color:var(--ink)">${name}</div>`;
+  evEl.appendChild(d);
+  io.observe(d);
+});
+</script>
+</body>
+</html>
