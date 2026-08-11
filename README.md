@@ -13,11 +13,13 @@ customer pushes back — there is no prompt-injection path to an unearned refund
 
 ## Features
 
-- **Agent backend** — raw function-calling agent loop (no framework), built on
-  the official Anthropic SDK (default model `claude-opus-5`), with an OpenAI
-  adapter behind the same provider interface. The loop owns retries
-  (exponential backoff, surfaced as events), tool-error recovery, a
-  max-iteration guardrail, and safety-refusal handling.
+- **Agent backend** — raw function-calling agent loop (no framework) behind a
+  provider-agnostic LLM interface. **This build runs on DeepSeek
+  (`deepseek-v4-flash`)** through the OpenAI-compatible adapter; Anthropic and
+  an offline mock sit behind the same interface and are selected with one
+  environment variable. The loop owns retries (exponential backoff, surfaced as
+  events), tool-error recovery, a max-iteration guardrail, and safety-refusal
+  handling.
 - **Deterministic policy engine** — 11 numbered rules (R1–R11) implemented 1:1
   from [`refund_policy.md`](backend/app/data/refund_policy.md): return windows,
   damage claims, non-returnable categories, restocking fees, partial refunds,
@@ -62,7 +64,7 @@ static ES modules served by the same process).
 
 ```bash
 make setup                 # or: python3 -m venv .venv && .venv/bin/pip install -r backend/requirements.txt
-cp .env.example .env       # then put your ANTHROPIC_API_KEY in .env
+cp .env.example .env       # then add one LLM key — see "Choosing an LLM" below
 make dev                   # or: .venv/bin/uvicorn app.main:app --reload --app-dir backend --port 8000
 ```
 
@@ -81,7 +83,7 @@ run against the full 15-scenario suite; the notes are measured, not guessed.
 | **Groq** (free) | `OPENAI_BASE_URL=https://api.groq.com/openai/v1` · `OPENAI_MODEL=openai/gpt-oss-120b` · `LLM_MAX_TOKENS=400` | Fastest: 1–3s per turn. **100k tokens/day per model** (~11 turns) — but each model has its own budget, so switch models when one is spent. `llama-3.3-70b-versatile` is quicker still. |
 | **Google Gemini** (free) | `OPENAI_BASE_URL=https://generativelanguage.googleapis.com/v1beta/openai` · `OPENAI_MODEL=gemini-flash-latest` | Works, but the free tier allows **20 requests/day** ≈ 5 agent turns. Fine to try, too small to rely on. |
 | **Ollama** (fully local) | `OPENAI_BASE_URL=http://localhost:11434/v1` · `OPENAI_MODEL=gpt-oss:20b` · no key | No limits, fully offline. Set `OLLAMA_CONTEXT_LENGTH=16384` — the 4k default silently truncates the system prompt. |
-| **Anthropic** | `LLM_PROVIDER=anthropic` + `ANTHROPIC_API_KEY` | `claude-opus-5` with prompt caching and the effort parameter. |
+| **Anthropic** | `LLM_PROVIDER=anthropic` + `ANTHROPIC_API_KEY` | Adapter is implemented and unit-tested (prompt caching + effort parameter), but **not exercised in this build** — the 15-scenario suite was run on the providers above. |
 
 **Why the prompt is compact.** The system prompt and tool schemas are re-sent
 on *every* call within a turn, so a 4-call turn pays for them four times. The
@@ -100,34 +102,85 @@ exercises the full stack (clearly labeled, never used for real demos).
 
 ## Architecture
 
+**Four layers stand between a request and a refund.** Each one narrows what the
+layer above it is allowed to do, so by the time money is involved, the model's
+influence is gone.
+
+```mermaid
+flowchart TB
+    Chat["💬 Customer chat<br/>streaming reply · voice"]
+    API["⚡ POST /api/chat<br/>FastAPI · SSE"]
+    Loop["1️⃣ AGENT LOOP — run_turn<br/>raw function calling, no framework<br/>visible retries · backoff · guardrail"]
+    LLM(["🧠 DeepSeek deepseek-v4-flash<br/>swappable with one env var"])
+    Tools["2️⃣ TOOL BOUNDARY — 5 pydantic tools<br/>none of them accept a dollar amount"]
+    Engine["3️⃣ POLICY ENGINE — R1 to R11<br/>pure functions · no LLM<br/>the only place money is computed"]
+    Ledger["4️⃣ REFUND LEDGER<br/>re-runs the engine before it writes"]
+    Data[("🗄️ Mock CRM · 🎫 Escalations")]
+
+    Chat --> API --> Loop
+    Loop <-->|"normalized messages"| LLM
+    Loop -->|"validated tool call"| Tools
+    Tools --> Engine
+    Tools --> Data
+    Tools -->|"process_refund"| Ledger
+    Ledger -. "re-validates" .-> Engine
+
+    classDef ui fill:#e3f3f7,stroke:#0e7490,stroke-width:2px,color:#0b5c73
+    classDef edge fill:#e8eefc,stroke:#1d4ed8,stroke-width:2px,color:#1d4ed8
+    classDef loop fill:#fdf0dc,stroke:#9a5b00,stroke-width:2px,color:#7a4700
+    classDef tool fill:#eceafc,stroke:#4338ca,stroke-width:2px,color:#3730a3
+    classDef policy fill:#e2f0e9,stroke:#0f5132,stroke-width:3px,color:#0f5132
+    classDef store fill:#e4f3ea,stroke:#177245,stroke-width:2px,color:#0f5132
+
+    class Chat ui
+    class API edge
+    class Loop,LLM loop
+    class Tools tool
+    class Engine policy
+    class Ledger,Data store
+```
+
+Read it top to bottom. The model can *say* anything, but it can only **act**
+through five typed tools — `lookup_customer`, `get_order`,
+`check_refund_eligibility`, `process_refund`, `escalate_to_human` — and **not
+one of them takes a monetary amount as input.** Those tools can only get an
+outcome from the policy engine, and the ledger re-runs that engine before it
+writes. By the time money is involved, the model's influence is gone.
+
+Read it top to bottom. The model can *say* anything, but it can only **act**
+through five typed tools; those tools can only get an outcome from the policy
+engine; and the ledger re-runs that engine before it writes. By the time money
+is involved, the model's influence is gone.
+
+Running alongside that path is a second one — observability. Every component
+reports each step to a typed event bus, which is what makes the agent's
+reasoning watchable in real time rather than a black box:
+
 ```mermaid
 flowchart LR
-    subgraph Browser
-        Chat[Customer chat + voice]
-        Admin[Admin dashboard]
-    end
-    subgraph FastAPI
-        ChatAPI["POST /api/chat (SSE)"]
-        AdminAPI["GET /api/admin/* (SSE + REST)"]
-        Loop[Agent loop\nraw function calling]
-        Bus[(Event bus\nreasoning log)]
-        Tools[Tool dispatcher\nvalidation + retry]
-        Engine[Policy engine\nR1–R11, deterministic]
-        CRM[(Mock CRM\n15 profiles)]
-        Ledger[(Refund ledger)]
-        Esc[(Escalations)]
-    end
-    LLM[Anthropic claude-opus-5\nor OpenAI / mock]
+    Loop["Agent loop"] -.-> Bus
+    Tools["Tool dispatcher"] -.-> Bus
+    Engine["Policy engine"] -.-> Bus
+    Bus{{"📡 EVENT BUS<br/>16 typed events<br/>15 durable + 1 transient"}}
+    Bus -.->|"this turn"| ChatSSE["POST /api/chat"] --> ChatUI["💬 Chat status line<br/>and streamed tokens"]
+    Bus -.->|"all sessions, with replay"| AdminSSE["GET /api/admin/*"] --> AdminUI["📊 Admin reasoning log"]
 
-    Chat -->|message| ChatAPI --> Loop
-    Loop <-->|normalized messages + tools| LLM
-    Loop --> Tools --> Engine
-    Tools --> CRM & Ledger & Esc
-    Loop -.events.-> Bus
-    Tools -.events.-> Bus
-    Bus -.SSE.-> ChatAPI & AdminAPI
-    AdminAPI --> Admin
+    classDef bus fill:#f4f6f8,stroke:#45596b,stroke-width:2px,color:#17242f
+    classDef src fill:#fdf0dc,stroke:#9a5b00,color:#7a4700
+    classDef edge fill:#e8eefc,stroke:#1d4ed8,color:#1d4ed8
+    classDef ui fill:#e3f3f7,stroke:#0e7490,stroke-width:2px,color:#0b5c73
+    class Bus bus
+    class Loop,Tools,Engine src
+    class ChatSSE,AdminSSE edge
+    class ChatUI,AdminUI ui
 ```
+
+Read it top to bottom: the model can say anything, but it can only *act* through
+five typed tools; those tools can only get an outcome from the policy engine;
+and the ledger re-runs that engine before it writes. **Solid arrows are the
+request path, dashed arrows are observability** — every step reports itself to
+the event bus, which is what both the chat status line and the admin dashboard
+render.
 
 One turn = one `run_turn` call:
 
@@ -194,8 +247,9 @@ backend/
       prompts.py          System prompt: protocol, hard rules, policy text
     llm/
       base.py             Provider interface + normalized message format
-      anthropic_provider.py   Default (claude-opus-5, prompt caching, effort)
-      openai_provider.py      Alternative provider
+      openai_provider.py      ACTIVE: OpenAI-compatible client — DeepSeek,
+                              Groq, Gemini, Ollama (streaming lives here)
+      anthropic_provider.py   Alternative adapter (claude-*, prompt caching)
       mock_provider.py        Offline scripted provider (dev/tests only)
     services/
       crm.py              Mock CRM: seed hydration, lookups, ownership
@@ -224,8 +278,10 @@ docs/                     architecture.md, demo-script.md
 - **Provider-agnostic LLM layer** — the loop speaks a small normalized message
   format; Anthropic/OpenAI adapters translate at the edge, and the OpenAI
   adapter doubles as a client for any OpenAI-compatible endpoint (DeepSeek,
-  Groq, Gemini, Ollama). Swapping providers is a one-line `.env` change, and
-  the same 15-scenario suite verifies each one. Provider quirks are absorbed
+  Groq, Gemini, Ollama). Swapping providers is a one-line `.env` change. The
+  full 15-scenario suite was run end to end on **DeepSeek** (15/15) and
+  **Groq/gpt-oss-120b** (15/15); the other endpoints were smoke-tested.
+  Provider quirks are absorbed
   here rather than leaking into the agent: tool calls are replayed verbatim so
   vendor-specific fields survive the round trip, and schemas are emitted in the
   JSON-Schema subset every provider accepts.
@@ -245,12 +301,19 @@ docs/                     architecture.md, demo-script.md
 
 | Variable | Default | Purpose |
 |---|---|---|
-| `LLM_PROVIDER` | `anthropic` | `anthropic` \| `openai` \| `mock` |
-| `ANTHROPIC_API_KEY` | — | Required for the default provider |
-| `ANTHROPIC_MODEL` | `claude-opus-5` | Any current Claude model |
-| `LLM_EFFORT` | `low` | Claude reasoning effort (`low`/`medium`/`high`) |
-| `OPENAI_API_KEY` / `OPENAI_MODEL` | — / `gpt-4o` | Used when `LLM_PROVIDER=openai` |
+Defaults below are the *code* defaults in `config.py`. The shipped
+`.env.example` selects `openai` + a DeepSeek base URL, which is what this build
+actually runs.
+
+| Variable | Code default | Purpose |
+|---|---|---|
+| `LLM_PROVIDER` | `anthropic` | `anthropic` \| `openai` \| `mock`. **Set to `openai` in practice.** |
+| `OPENAI_API_KEY` / `OPENAI_MODEL` | — / `gpt-4o` | Used when `LLM_PROVIDER=openai` — i.e. the active path |
 | `OPENAI_BASE_URL` | — | Any OpenAI-compatible endpoint (DeepSeek / Groq / Gemini / Ollama) |
+| `LLM_STREAMING` | `true` | Stream the reply token by token; `false` delivers it in one piece |
+| `ANTHROPIC_API_KEY` | — | Only needed if you switch `LLM_PROVIDER` to `anthropic` |
+| `ANTHROPIC_MODEL` | `claude-opus-5` | Any current Claude model |
+| `LLM_EFFORT` | `low` | Claude reasoning effort (`low`/`medium`/`high`) — Anthropic path only |
 | `LLM_MAX_TOKENS` | `16000` | Reply cap. Keep small on free tiers that pre-count it (Groq) |
 | `LLM_RETRY_ATTEMPTS` | `3` | Visible retries for transient LLM failures |
 | `MAX_TOOL_ITERATIONS` | `8` | Runaway-loop guardrail |
@@ -284,6 +347,5 @@ Known and deliberate, with the reasoning:
 - **Money as floats**, rounded at the boundary. Fine at these amounts;
   `Decimal` is the right call if this ever handles real money.
 
-Token-level reply streaming is the other natural addition — the event stream
-already provides live feedback, and the typed event model was designed so an
-eval harness can replay reasoning traces offline.
+The typed event model was designed so an offline eval harness could replay
+reasoning traces and score them — that is the natural next addition.
