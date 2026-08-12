@@ -208,6 +208,9 @@ h1 em{font-style:normal;color:var(--accent);display:block}
 .flow-ctl{display:flex;align-items:center;gap:14px;padding:12px 16px;border-top:1px solid var(--line);
   background:var(--surface-2);font-family:var(--mono);font-size:11.5px;color:var(--ink-2)}
 .flow-ctl .step{flex:1;color:var(--ink-2)}
+.flow-ctl .no{font-variant-numeric:tabular-nums;color:var(--ink-3);letter-spacing:.06em}
+.replay[disabled]{opacity:.4;cursor:default}
+.replay[disabled]:hover{border-color:var(--line-2);color:var(--ink-2)}
 .flow-ctl .step b{color:var(--accent);font-weight:600}
 
 /* ── tech stack ────────────────────────────────────────────── */
@@ -295,7 +298,7 @@ footer .mono{color:var(--ink-2)}
 
 <!-- ══ HERO ══ -->
 <section class="hero">
-  <span class="badge"><b>●</b> 105 tests passing · 15/15 scenarios verified live</span>
+  <span class="badge"><b>●</b> 137 tests passing · 15/15 scenarios verified live</span>
   <h1>The LLM talks.<em>The code decides.</em></h1>
   <p class="lede">Meridian Assist is an AI customer-support agent that processes or denies
   e-commerce refunds. The model runs the conversation and chooses tools — but eligibility
@@ -303,12 +306,12 @@ footer .mono{color:var(--ink-2)}
   That separation is the whole architecture.</p>
 
   <div class="metrics">
-    <div class="metric"><b>2,552</b><span>python</span></div>
-    <div class="metric"><b>1,456</b><span>frontend</span></div>
-    <div class="metric"><b>1,180</b><span>test code</span></div>
+    <div class="metric"><b>2,963</b><span>python</span></div>
+    <div class="metric"><b>1,488</b><span>frontend</span></div>
+    <div class="metric"><b>1,718</b><span>test code</span></div>
     <div class="metric"><b>12</b><span>policy rules</span></div>
     <div class="metric"><b>5</b><span>agent tools</span></div>
-    <div class="metric"><b>15</b><span>event types</span></div>
+    <div class="metric"><b>16</b><span>event types</span></div>
     <div class="metric"><b>13</b><span>endpoints</span></div>
   </div>
 
@@ -438,8 +441,11 @@ footer .mono{color:var(--ink-2)}
       </svg>
     </div>
     <div class="flow-ctl">
-      <button class="replay" id="flowPlay">▸ play request</button>
-      <span class="step" id="flowStep">Idle — press play to trace a refund end to end.</span>
+      <button class="replay" id="flowToggle" aria-label="Play or pause the walkthrough">▸ play</button>
+      <button class="replay" id="flowPrev" aria-label="Previous step">◀</button>
+      <button class="replay" id="flowNext" aria-label="Next step">▶</button>
+      <span class="no" id="flowNo">00 / 16</span>
+      <span class="step" id="flowStep">Idle — press play to trace a refund end to end, or step through it yourself.</span>
     </div>
   </div>
 </section>
@@ -499,7 +505,7 @@ footer .mono{color:var(--ink-2)}
     <div class="tcol rv">
       <h3>Testing</h3>
       <ul>
-        <li><div><b>pytest</b><span class="why">105 tests, no async plugin needed</span></div><span class="v">9.1</span></li>
+        <li><div><b>pytest</b><span class="why">137 tests, no async plugin needed</span></div><span class="v">9.1</span></li>
         <li><div><b>Scripted fake LLM</b><span class="why">Deterministic retry and failure paths</span></div></li>
         <li><div><b>TestClient</b><span class="why">HTTP + SSE end to end</span></div></li>
       </ul>
@@ -660,7 +666,7 @@ footer .mono{color:var(--ink-2)}
   <h2>What was actually tested</h2>
 
   <div class="grid g4">
-    <div class="card rv"><span class="k">unit + integration</span><h3>105 tests</h3>
+    <div class="card rv"><span class="k">unit + integration</span><h3>137 tests</h3>
       <p>Every rule and its boundaries, ledger re-validation, loop retry and failure paths via a
       scripted fake LLM, provider config, TTS proxy, and the HTTP API end to end.</p></div>
     <div class="card rv"><span class="k">live sweep</span><h3>15 / 15 personas</h3>
@@ -885,62 +891,120 @@ const STORY = [
   ["eleven", "apiTts>eleven",   "ElevenLabs returns audio · browser speech is the fallback"]
 ];
 
-const stepEl = document.getElementById("flowStep");
-let flowTimers = [], rafId = null;
+const stepEl   = document.getElementById("flowStep");
+const noEl     = document.getElementById("flowNo");
+const toggleBt = document.getElementById("flowToggle");
+const prevBt   = document.getElementById("flowPrev");
+const nextBt   = document.getElementById("flowNext");
 
-function clearFlow() {
-  flowTimers.forEach(clearTimeout); flowTimers = [];
-  if (rafId) cancelAnimationFrame(rafId);
-  Object.values(nodeEls).forEach(n => n.classList.remove("on","done"));
-  Object.values(linkEls).forEach(l => l.classList.remove("lit"));
-  packet.style.opacity = 0;
+/* Paced for reading, not for spectacle: the packet takes ~0.9s to cross a
+   link and the caption then rests for ~1.9s before advancing. Stepping with
+   the arrows skips the travel animation so you can move at your own speed. */
+const TRAVEL_MS = 900;
+const HOLD_MS   = 1900;
+const LAST      = STORY.length - 1;
+
+let idx = -1;            /* step currently on screen; -1 = idle */
+let playing = false;
+let holdTimer = null;
+let rafId = null;
+
+function cancelTimers(){
+  if (holdTimer){ clearTimeout(holdTimer); holdTimer = null; }
+  if (rafId){ cancelAnimationFrame(rafId); rafId = null; }
 }
 
-function travel(pathKey, done) {
+function syncControls(){
+  toggleBt.textContent = playing ? "❙❙ pause" : (idx >= LAST ? "↻ replay" : "▸ play");
+  prevBt.disabled = idx <= 0;
+  nextBt.disabled = idx >= LAST;
+  noEl.textContent = (idx < 0 ? "00" : String(idx + 1).padStart(2,"0")) + " / " + String(STORY.length).padStart(2,"0");
+}
+
+function travel(pathKey, done){
   const path = linkEls[pathKey];
-  if (!path) { done(); return; }
+  if (!path){ done(); return; }
   path.classList.add("lit");
   const len = path.getTotalLength();
-  const dur = 620;
   let t0 = null;
   packet.style.opacity = 1;
-  function frame(ts) {
+  function frame(ts){
     if (!t0) t0 = ts;
-    const k = Math.min((ts - t0) / dur, 1);
+    const k = Math.min((ts - t0) / TRAVEL_MS, 1);
     const pt = path.getPointAtLength(len * k);
     packet.setAttribute("cx", pt.x);
     packet.setAttribute("cy", pt.y);
     if (k < 1) rafId = requestAnimationFrame(frame);
-    else { packet.style.opacity = 0; done(); }
+    else { packet.style.opacity = 0; rafId = null; done(); }
   }
   rafId = requestAnimationFrame(frame);
 }
 
-function playFlow() {
-  clearFlow();
-  let i = 0;
-  const next = () => {
-    if (i >= STORY.length) {
-      stepEl.innerHTML = "<b>Complete</b> — refund written, dashboard updated, reply spoken.";
-      return;
+/* Repaint the whole diagram for step i, so jumping is identical to arriving. */
+function goto(i, animate){
+  cancelTimers();
+  idx = Math.max(0, Math.min(i, LAST));
+
+  Object.values(nodeEls).forEach(n => n.classList.remove("on","done"));
+  Object.values(linkEls).forEach(l => l.classList.remove("lit"));
+  packet.style.opacity = 0;
+  for (let k = 0; k < idx; k++){
+    const [n, l] = STORY[k];
+    if (nodeEls[n]) nodeEls[n].classList.add("done");
+    if (l && linkEls[l]) linkEls[l].classList.add("lit");
+  }
+
+  const [node, link, caption] = STORY[idx];
+  stepEl.innerHTML = "<b>" + String(idx + 1).padStart(2,"0") + "</b> &nbsp;" + caption;
+
+  const land = () => {
+    if (nodeEls[node]) nodeEls[node].classList.add("on","done");
+    syncControls();
+    if (playing){
+      if (idx >= LAST) finish();
+      else holdTimer = setTimeout(() => goto(idx + 1, true), HOLD_MS);
     }
-    const [node, link, caption] = STORY[i];
-    stepEl.innerHTML = `<b>${String(i + 1).padStart(2,"0")}</b> &nbsp;${caption}`;
-    Object.values(nodeEls).forEach(n => n.classList.remove("on"));
-    const advance = () => {
-      nodeEls[node].classList.add("on","done");
-      i++;
-      flowTimers.push(setTimeout(next, reduced ? 0 : 520));
-    };
-    if (link && !reduced) travel(link, advance); else advance();
   };
-  next();
+
+  if (animate && link && !reduced) travel(link, land);
+  else { if (link && linkEls[link]) linkEls[link].classList.add("lit"); land(); }
+  syncControls();
 }
 
-document.getElementById("flowPlay").addEventListener("click", playFlow);
+function finish(){
+  playing = false;
+  cancelTimers();
+  stepEl.innerHTML = "<b>Complete</b> &nbsp;Refund written, dashboard updated, reply streamed and spoken.";
+  syncControls();
+}
+
+function play(){
+  playing = true;
+  if (idx >= LAST) goto(0, true);          /* replay from the top */
+  else goto(idx < 0 ? 0 : idx + 1, true);
+}
+
+function pause(){
+  playing = false;
+  cancelTimers();
+  packet.style.opacity = 0;
+  syncControls();
+}
+
+toggleBt.addEventListener("click", () => playing ? pause() : play());
+prevBt.addEventListener("click", () => { pause(); goto(idx - 1, false); });
+nextBt.addEventListener("click", () => { pause(); goto(idx + 1, false); });
+
+/* Arrow keys work once any control has focus. */
+[toggleBt, prevBt, nextBt].forEach(b => b.addEventListener("keydown", e => {
+  if (e.key === "ArrowRight"){ e.preventDefault(); pause(); goto(idx + 1, false); }
+  if (e.key === "ArrowLeft"){ e.preventDefault(); pause(); goto(idx - 1, false); }
+}));
+
+syncControls();
 
 const flowIO = new IntersectionObserver((entries) => {
-  entries.forEach(e => { if (e.isIntersecting && !reduced) { playFlow(); flowIO.disconnect(); } });
+  entries.forEach(e => { if (e.isIntersecting && !reduced){ play(); flowIO.disconnect(); } });
 }, {threshold:0.35});
 flowIO.observe(svg);
 
@@ -978,7 +1042,7 @@ const TREE = [
   ["  js/app.js", 49, "shell · view modes · provider pill", 0],
   ["  index.html", 159, "chat + dashboard + split view", 0],
   ["  styles/", 487, "base · chat · admin", 0],
-  ["backend/tests/", 1180, "105 tests across 8 files", 1]
+  ["backend/tests/", 1718, "137 tests across 9 files", 1]
 ];
 
 const treeEl = document.getElementById("tree");
