@@ -74,8 +74,9 @@ reasoning while you chat. `make test` runs the suite.
 ### Choosing an LLM
 
 The `openai` provider speaks to **any OpenAI-compatible endpoint** via
-`OPENAI_BASE_URL`, so the model is a one-line change. Every option below was
-run against the full 15-scenario suite; the notes are measured, not guessed.
+`OPENAI_BASE_URL`, so the model is a one-line change. The notes below are
+measured, not guessed — limits were found by pushing each provider until it
+errored and reading the message.
 
 | Option | `.env` settings | Measured behaviour |
 |---|---|---|
@@ -102,85 +103,22 @@ exercises the full stack (clearly labeled, never used for real demos).
 
 ## Architecture
 
-**Four layers stand between a request and a refund.** Each one narrows what the
-layer above it is allowed to do, so by the time money is involved, the model's
-influence is gone.
+<p align="center">
+  <img src="docs/architecture-flow.svg" alt="Meridian Assist architecture: browser, FastAPI, services and external/data layers. One refund turn flows from the chat UI through POST /api/chat into the agent loop, out to the LLM provider, through pydantic-validated tool dispatch, and into the deterministic policy engine. Dashed links carry reasoning events to the event bus and out over SSE to the admin dashboard." width="100%">
+</p>
 
-```mermaid
-flowchart TB
-    Chat["💬 Customer chat<br/>streaming reply · voice"]
-    API["⚡ POST /api/chat<br/>FastAPI · SSE"]
-    Loop["1️⃣ AGENT LOOP — run_turn<br/>raw function calling, no framework<br/>visible retries · backoff · guardrail"]
-    LLM(["🧠 DeepSeek deepseek-v4-flash<br/>swappable with one env var"])
-    Tools["2️⃣ TOOL BOUNDARY — 5 pydantic tools<br/>none of them accept a dollar amount"]
-    Engine["3️⃣ POLICY ENGINE — R1 to R11<br/>pure functions · no LLM<br/>the only place money is computed"]
-    Ledger["4️⃣ REFUND LEDGER<br/>re-runs the engine before it writes"]
-    Data[("🗄️ Mock CRM · 🎫 Escalations")]
-
-    Chat --> API --> Loop
-    Loop <-->|"normalized messages"| LLM
-    Loop -->|"validated tool call"| Tools
-    Tools --> Engine
-    Tools --> Data
-    Tools -->|"process_refund"| Ledger
-    Ledger -. "re-validates" .-> Engine
-
-    classDef ui fill:#e3f3f7,stroke:#0e7490,stroke-width:2px,color:#0b5c73
-    classDef edge fill:#e8eefc,stroke:#1d4ed8,stroke-width:2px,color:#1d4ed8
-    classDef loop fill:#fdf0dc,stroke:#9a5b00,stroke-width:2px,color:#7a4700
-    classDef tool fill:#eceafc,stroke:#4338ca,stroke-width:2px,color:#3730a3
-    classDef policy fill:#e2f0e9,stroke:#0f5132,stroke-width:3px,color:#0f5132
-    classDef store fill:#e4f3ea,stroke:#177245,stroke-width:2px,color:#0f5132
-
-    class Chat ui
-    class API edge
-    class Loop,LLM loop
-    class Tools tool
-    class Engine policy
-    class Ledger,Data store
-```
-
-Read it top to bottom. The model can *say* anything, but it can only **act**
-through five typed tools — `lookup_customer`, `get_order`,
-`check_refund_eligibility`, `process_refund`, `escalate_to_human` — and **not
-one of them takes a monetary amount as input.** Those tools can only get an
-outcome from the policy engine, and the ledger re-runs that engine before it
-writes. By the time money is involved, the model's influence is gone.
-
-Read it top to bottom. The model can *say* anything, but it can only **act**
-through five typed tools; those tools can only get an outcome from the policy
-engine; and the ledger re-runs that engine before it writes. By the time money
+Four layers stand between a request and a refund, and each narrows what the one
+above it may do. The model can *say* anything, but it can only **act** through
+five typed tools — `lookup_customer`, `get_order`, `check_refund_eligibility`,
+`process_refund`, `escalate_to_human` — and **not one of them takes a monetary
+amount as input.** Those tools can only get an outcome from the policy engine,
+and the refund ledger re-runs that engine before it writes. By the time money
 is involved, the model's influence is gone.
 
-Running alongside that path is a second one — observability. Every component
-reports each step to a typed event bus, which is what makes the agent's
-reasoning watchable in real time rather than a black box:
-
-```mermaid
-flowchart LR
-    Loop["Agent loop"] -.-> Bus
-    Tools["Tool dispatcher"] -.-> Bus
-    Engine["Policy engine"] -.-> Bus
-    Bus{{"📡 EVENT BUS<br/>16 typed events<br/>15 durable + 1 transient"}}
-    Bus -.->|"this turn"| ChatSSE["POST /api/chat"] --> ChatUI["💬 Chat status line<br/>and streamed tokens"]
-    Bus -.->|"all sessions, with replay"| AdminSSE["GET /api/admin/*"] --> AdminUI["📊 Admin reasoning log"]
-
-    classDef bus fill:#f4f6f8,stroke:#45596b,stroke-width:2px,color:#17242f
-    classDef src fill:#fdf0dc,stroke:#9a5b00,color:#7a4700
-    classDef edge fill:#e8eefc,stroke:#1d4ed8,color:#1d4ed8
-    classDef ui fill:#e3f3f7,stroke:#0e7490,stroke-width:2px,color:#0b5c73
-    class Bus bus
-    class Loop,Tools,Engine src
-    class ChatSSE,AdminSSE edge
-    class ChatUI,AdminUI ui
-```
-
-Read it top to bottom: the model can say anything, but it can only *act* through
-five typed tools; those tools can only get an outcome from the policy engine;
-and the ledger re-runs that engine before it writes. **Solid arrows are the
-request path, dashed arrows are observability** — every step reports itself to
-the event bus, which is what both the chat status line and the admin dashboard
-render.
+Solid links are the request path; dashed links are reasoning events. Every
+component reports each step to the event bus, which is what makes the agent
+watchable in real time — the chat status line and streamed tokens on one SSE
+stream, the full admin reasoning log (with replay) on another.
 
 One turn = one `run_turn` call:
 

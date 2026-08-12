@@ -1,0 +1,95 @@
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" viewBox="0 0 1080 690" width="1080" height="690" role="img" aria-label="Meridian Assist architecture: browser, FastAPI, services and external data layers, with one refund turn flowing from the chat UI through the agent loop and tool dispatch into the deterministic policy engine.">
+<title>Meridian Assist &#8212; architecture</title>
+<defs>
+  <marker id="ah" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" class="ahead"/></marker>
+  <marker id="ahe" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" class="aheade"/></marker>
+</defs>
+<style>
+  :root { color-scheme: light dark; }
+  .bg      { fill:#ffffff; }
+  .band    { fill:none; stroke:#d2dde0; stroke-width:1; stroke-dasharray:3 4; }
+  .bandlbl { fill:#7b939a; font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace; font-size:9.5px; letter-spacing:.14em; }
+  .link    { fill:none; stroke:#bccace; stroke-width:1.6; }
+  .link.evt{ stroke-dasharray:4 4; opacity:.75; }
+  .ahead   { fill:#bccace; }
+  .aheade  { fill:#bccace; opacity:.75; }
+  .fnode rect  { fill:#f4f8f9; stroke:#bccace; stroke-width:1.5; }
+  .fnode .nlabel { fill:#0c1a1e; font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace; font-size:12px; font-weight:600; }
+  .fnode .nsub   { fill:#7b939a; font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace; font-size:10px; }
+  .fnode.ext rect  { stroke-dasharray:5 3; }
+  .fnode.data rect { fill:#e3eaec; }
+  .packet { fill:#12a5bd; }
+  .cap    { fill:#42585f; font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace; font-size:11px; }
+  .cap b  { fill:#0c7d90; }
+
+  @keyframes lit {
+    0%, 4%   { fill:#f4f8f9; stroke:#bccace; stroke-width:1.5; }
+    7%, 15%  { fill:#dcedf0; stroke:#0c7d90; stroke-width:2.4; }
+    26%,100% { fill:#f4f8f9; stroke:#bccace; stroke-width:1.5; }
+  }
+  @keyframes litlbl {
+    0%, 4%   { fill:#0c1a1e; }
+    7%, 15%  { fill:#0c7d90; }
+    26%,100% { fill:#0c1a1e; }
+  }
+#n-chat rect { animation: lit 9.0s ease-in-out 0.0s infinite; }
+#n-chat .nlabel { animation: litlbl 9.0s ease-in-out 0.0s infinite; }
+#n-apiChat rect { animation: lit 9.0s ease-in-out 0.9s infinite; }
+#n-apiChat .nlabel { animation: litlbl 9.0s ease-in-out 0.9s infinite; }
+#n-loop rect { animation: lit 9.0s ease-in-out 1.8s infinite; }
+#n-loop .nlabel { animation: litlbl 9.0s ease-in-out 1.8s infinite; }
+#n-llm rect { animation: lit 9.0s ease-in-out 2.6s infinite; }
+#n-llm .nlabel { animation: litlbl 9.0s ease-in-out 2.6s infinite; }
+#n-tools rect { animation: lit 9.0s ease-in-out 3.6s infinite; }
+#n-tools .nlabel { animation: litlbl 9.0s ease-in-out 3.6s infinite; }
+#n-policy rect { animation: lit 9.0s ease-in-out 4.4s infinite; }
+#n-policy .nlabel { animation: litlbl 9.0s ease-in-out 4.4s infinite; }
+#n-ledger rect { animation: lit 9.0s ease-in-out 5.2s infinite; }
+#n-ledger .nlabel { animation: litlbl 9.0s ease-in-out 5.2s infinite; }
+#n-bus rect { animation: lit 9.0s ease-in-out 6.0s infinite; }
+#n-bus .nlabel { animation: litlbl 9.0s ease-in-out 6.0s infinite; }
+#n-apiAdm rect { animation: lit 9.0s ease-in-out 6.8s infinite; }
+#n-apiAdm .nlabel { animation: litlbl 9.0s ease-in-out 6.8s infinite; }
+#n-admin rect { animation: lit 9.0s ease-in-out 7.4s infinite; }
+#n-admin .nlabel { animation: litlbl 9.0s ease-in-out 7.4s infinite; }
+
+  @media (prefers-color-scheme: dark) {
+    .bg      { fill:#0e1c20; }
+    .band    { stroke:#1d3138; }
+    .bandlbl { fill:#6a848b; }
+    .link    { stroke:#294248; }
+    .ahead   { fill:#294248; }
+    .aheade  { fill:#294248; }
+    .fnode rect    { fill:#132428; stroke:#294248; }
+    .fnode .nlabel { fill:#e7f0f2; }
+    .fnode .nsub   { fill:#6a848b; }
+    .fnode.data rect { fill:#182e33; }
+    .packet { fill:#5cdcf1; }
+    .cap    { fill:#9cb2b8; }
+    .cap b  { fill:#39c8e0; }
+    @keyframes lit {
+      0%, 4%   { fill:#132428; stroke:#294248; stroke-width:1.5; }
+      7%, 15%  { fill:#0d2f38; stroke:#39c8e0; stroke-width:2.4; }
+      26%,100% { fill:#132428; stroke:#294248; stroke-width:1.5; }
+    }
+    @keyframes litlbl {
+      0%, 4%   { fill:#e7f0f2; }
+      7%, 15%  { fill:#39c8e0; }
+      26%,100% { fill:#e7f0f2; }
+    }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .fnode rect, .fnode .nlabel { animation:none !important; }
+    .packet { display:none; }
+  }
+</style>
+<rect class="bg" x="0" y="0" width="1080" height="690" rx="0"/>
+<g id="bands"><rect x="24" y="44" width="222" height="592" rx="14" class="band"/><text x="36" y="62" class="bandlbl">BROWSER</text><rect x="264" y="44" width="222" height="592" rx="14" class="band"/><text x="276" y="62" class="bandlbl">FASTAPI</text><rect x="514" y="44" width="222" height="508" rx="14" class="band"/><text x="526" y="62" class="bandlbl">SERVICES</text><rect x="764" y="118" width="222" height="292" rx="14" class="band"/><text x="776" y="136" class="bandlbl">EXTERNAL / DATA</text></g>
+<g id="links"><path d="M230,97 C255,97 255,97 280,97" class="link" marker-end="url(#ah)"/><path d="M375,124 C375,180 375,180 375,236" class="link" marker-end="url(#ah)"/><path d="M375,298 C375,314 375,314 375,330" class="link" marker-end="url(#ah)"/><path d="M470,267 C625,267 625,263 780,263" class="link" marker-end="url(#ah)"/><path d="M470,357 C500,357 500,263 530,263" class="link" marker-end="url(#ah)"/><path d="M470,357 C500,357 500,357 530,357" class="link" marker-end="url(#ah)"/><path d="M470,357 C500,357 500,441 530,441" class="link" marker-end="url(#ah)"/><path d="M470,357 C500,357 500,525 530,525" class="link" marker-end="url(#ah)"/><path d="M720,357 C750,357 750,357 780,357" class="link" marker-end="url(#ah)"/><path d="M720,263 C750,263 750,357 780,357" class="link" marker-end="url(#ah)"/><path d="M625,414 C625,399 625,399 625,384" class="link" marker-end="url(#ah)"/><path d="M470,267 C500,267 500,97 530,97" class="link evt" marker-end="url(#ahe)"/><path d="M625,330 C625,227 625,227 625,124" class="link evt" marker-end="url(#ahe)"/><path d="M625,414 C625,269 625,269 625,124" class="link evt" marker-end="url(#ahe)"/><path d="M625,124 C625,342 375,342 375,560" class="link evt" marker-end="url(#ahe)"/><path d="M280,587 C255,587 255,587 230,587" class="link" marker-end="url(#ah)"/><path d="M280,97 C255,97 255,97 230,97" class="link" marker-end="url(#ah)"/><path d="M230,169 C255,169 255,169 280,169" class="link" marker-end="url(#ah)"/><path d="M470,169 C625,169 625,169 780,169" class="link" marker-end="url(#ah)"/></g>
+<g id="nodes"><g class="fnode" id="n-chat"><rect x="40" y="70" width="190" height="54" rx="10"/><text x="54" y="94" class="nlabel">Chat UI</text><text x="54" y="110" class="nsub">chat.js</text></g><g class="fnode" id="n-voice"><rect x="40" y="142" width="190" height="54" rx="10"/><text x="54" y="166" class="nlabel">Voice</text><text x="54" y="182" class="nsub">mic &#183; speaker</text></g><g class="fnode" id="n-admin"><rect x="40" y="560" width="190" height="54" rx="10"/><text x="54" y="584" class="nlabel">Admin Dashboard</text><text x="54" y="600" class="nsub">admin.js</text></g><g class="fnode" id="n-apiChat"><rect x="280" y="70" width="190" height="54" rx="10"/><text x="294" y="94" class="nlabel">POST /api/chat</text><text x="294" y="110" class="nsub">SSE per turn</text></g><g class="fnode" id="n-apiTts"><rect x="280" y="142" width="190" height="54" rx="10"/><text x="294" y="166" class="nlabel">POST /api/tts</text><text x="294" y="182" class="nsub">key stays server</text></g><g class="fnode" id="n-apiAdm"><rect x="280" y="560" width="190" height="54" rx="10"/><text x="294" y="584" class="nlabel">/admin/stream</text><text x="294" y="600" class="nsub">SSE + replay</text></g><g class="fnode" id="n-loop"><rect x="280" y="236" width="190" height="62" rx="10"/><text x="294" y="260" class="nlabel">AgentRunner</text><text x="294" y="276" class="nsub">loop.py &#183; retries</text></g><g class="fnode" id="n-tools"><rect x="280" y="330" width="190" height="54" rx="10"/><text x="294" y="354" class="nlabel">Tool dispatch</text><text x="294" y="370" class="nsub">pydantic validate</text></g><g class="fnode" id="n-policy"><rect x="530" y="330" width="190" height="54" rx="10"/><text x="544" y="354" class="nlabel">Policy engine</text><text x="544" y="370" class="nsub">R1&#8211;R11 &#183; pure</text></g><g class="fnode" id="n-crm"><rect x="530" y="236" width="190" height="54" rx="10"/><text x="544" y="260" class="nlabel">Mock CRM</text><text x="544" y="276" class="nsub">15 profiles</text></g><g class="fnode" id="n-ledger"><rect x="530" y="414" width="190" height="54" rx="10"/><text x="544" y="438" class="nlabel">Refund ledger</text><text x="544" y="454" class="nsub">re-validates</text></g><g class="fnode" id="n-esc"><rect x="530" y="498" width="190" height="54" rx="10"/><text x="544" y="522" class="nlabel">Escalations</text><text x="544" y="538" class="nsub">human review</text></g><g class="fnode data" id="n-data"><rect x="780" y="330" width="190" height="54" rx="10"/><text x="794" y="354" class="nlabel">Seed data</text><text x="794" y="370" class="nsub">customers &#183; policy</text></g><g class="fnode" id="n-bus"><rect x="530" y="70" width="190" height="54" rx="10"/><text x="544" y="94" class="nlabel">Event bus</text><text x="544" y="110" class="nsub">16 typed events</text></g><g class="fnode ext" id="n-llm"><rect x="780" y="236" width="190" height="54" rx="10"/><text x="794" y="260" class="nlabel">LLM provider</text><text x="794" y="276" class="nsub">DeepSeek v4-flash</text></g><g class="fnode ext" id="n-eleven"><rect x="780" y="142" width="190" height="54" rx="10"/><text x="794" y="166" class="nlabel">ElevenLabs</text><text x="794" y="182" class="nsub">text to speech</text></g></g>
+<circle class="packet" r="5.5">
+  <animateMotion path="M230,97 L375,97 L375,236 L375,330 L470,357 L530,357" dur="9.0s" repeatCount="indefinite" keyPoints="0;0;1;1" keyTimes="0;0.03;0.55;1" calcMode="linear"/>
+  <animate attributeName="opacity" values="0;1;1;0;0" keyTimes="0;0.05;0.5;0.58;1" dur="9.0s" repeatCount="indefinite"/>
+</circle>
+<text class="cap" x="40" y="668">One turn: chat &#8594; <tspan>/api/chat</tspan> &#8594; agent loop &#8594; tool dispatch &#8594; <tspan class="cap"><tspan>policy engine</tspan></tspan>. Dashed links are events. The engine is the only place money is computed.</text>
+</svg>
